@@ -1,3 +1,4 @@
+// background.js
 import {
   loadModel,
   extractFeaturesFromUrl,
@@ -5,143 +6,193 @@ import {
 } from './scripts/model_predict.js';
 
 const MODEL_PATH = chrome.runtime.getURL('model/model.json');
-const BLOCK_THRESHOLD = 0.95;
-const WARN_THRESHOLD = 0.9;
+const BLOCK_THRESHOLD = 0.96; // Immediate block
+const WARN_THRESHOLD = 0.85;  // Warning banner + Safe Mode
 
 let modelLoaded = false;
 
-// Load ML model on startup
+// Initialize Stats
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.storage.local.set({
+    stats: { scanned: 0, blocked: 0, totalRisk: 0, falsePositives: 0, falseNegatives: 0 },
+    scanLogs: [],
+    pending_training_data: [],
+    allowlist: []
+  });
+});
+
 (async () => {
   try {
     await loadModel(MODEL_PATH);
     modelLoaded = true;
-    console.log('PhishGuard model loaded');
+    console.log('PhishGuard AI model loaded');
   } catch (err) {
     console.error('Model load failed:', err);
   }
 })();
 
-// Heuristic scoring function
-function heuristicScore(url) {
-  let score = 0;
-  if (url.includes('@')) score += 0.6;
-  if (url.match(/\d+\.\d+\.\d+\.\d+/)) score += 0.8;
-  if (url.length > 200) score += 0.4;
-  if (url.includes('xn--')) score += 0.4;
-  return Math.min(1, score);
-}
-
-// Restricted URL check
 function isRestrictedUrl(url) {
-  return (
-    url.startsWith('chrome://') ||
-    url.startsWith('about:') ||
-    url.startsWith('edge://') ||
-    url.startsWith('file://')
-  );
+  return url.startsWith('chrome://') || url.startsWith('about:') || url.startsWith('edge://') || url.startsWith('file://') || url.includes('blocked.html');
 }
 
-// Safe hostname extraction
-function getHostname(url) {
-  try {
-    return new URL(url).hostname;
-  } catch (e) {
-    console.warn('Invalid URL for hostname extraction:', url);
-    return 'unknown';
-  }
+// Security Logger & Stats Tracker
+async function logSecurityEvent(url, risk, features) {
+  const domain = new URL(url).hostname;
+  const flags = [];
+  if (features.is_tunnel) flags.push("Tunnel");
+  if (features.is_homograph) flags.push("Homograph");
+  if (features.suspicious_tld) flags.push("Risk-TLD");
+  if (features.subdomain_count > 2) flags.push("Subdomains");
+
+  chrome.storage.local.get(['stats', 'scanLogs', 'pending_training_data', 'safeMode'], (res) => {
+    let stats = res.stats || { scanned: 0, blocked: 0, totalRisk: 0, falsePositives: 0, falseNegatives: 0 };
+    let logs = res.scanLogs || [];
+    let trainingData = res.pending_training_data || [];
+
+    stats.scanned++;
+    stats.totalRisk += risk;
+    if (risk >= BLOCK_THRESHOLD) stats.blocked++;
+
+    logs.push({
+      ts: Date.now(),
+      domain: domain,
+      risk: risk,
+      flags: flags.join(', ')
+    });
+
+    // Save for dataset improvement (Anonymous)
+    trainingData.push({ url, risk, ts: Date.now() });
+
+    // Keep logs manageable
+    if (logs.length > 500) logs.shift();
+    if (trainingData.length > 1000) trainingData.shift();
+
+    chrome.storage.local.set({ stats, scanLogs: logs, pending_training_data: trainingData });
+
+    // Activate Safe Mode if Risk is High or User Enabled it
+    const shouldEnforceSafeMode = (risk >= WARN_THRESHOLD) || !!res.safeMode;
+    if (shouldEnforceSafeMode) {
+      applySafeModeProtections(url, risk);
+    }
+  });
 }
 
-// Navigation handler
+function applySafeModeProtections(url, risk) {
+  chrome.tabs.query({ url: url }, (tabs) => {
+    tabs.forEach(tab => {
+      chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: (r) => {
+          window.phishGuardRisk = r;
+          console.log(`[PhishGuard] Safe Mode Active (Risk: ${Math.round(r * 100)}%)`);
+          // Disable auto-fill and password fields protection
+          document.querySelectorAll('input[type="password"]').forEach(i => {
+            i.setAttribute('autocomplete', 'off');
+            i.style.border = '2px solid #ef4444';
+          });
+          // Optional: Inject warning banner
+        },
+        args: [risk]
+      }).catch(() => { });
+    });
+  });
+}
+
 chrome.webNavigation.onCommitted.addListener(async (details) => {
+  if (details.frameId !== 0) return;
   const url = details.url;
-  if (isRestrictedUrl(url)) {
-    console.warn(`Restricted URL skipped: ${url}`);
-    return;
-  }
+  if (isRestrictedUrl(url) || !modelLoaded) return;
 
-  try {
-    const h = heuristicScore(url);
-
-    if (h >= BLOCK_THRESHOLD) {
-      const hostname = getHostname(url);
-      chrome.notifications.create({
-        type: 'basic',
-        iconUrl: 'icon.png',
-        title: 'PhishGuard blocked a site',
-        message: `Navigation to ${hostname} was blocked by heuristic checks.`,
-        requireInteraction: true
-      });
+  chrome.storage.local.get(['allowlist'], async (res) => {
+    const list = res.allowlist || [];
+    try {
+      const parsedUrl = new URL(url);
+      if (list.includes(parsedUrl.hostname)) {
+          return; // User explicitly trusted this site
+      }
+    if (parsedUrl.hostname.endsWith('.trycloudflare.net') || parsedUrl.hostname === 'trycloudflare.net') {
+      logSecurityEvent(url, 1.0, { is_tunnel: 1, is_homograph: 0, suspicious_tld: 0, subdomain_count: 0 });
       chrome.tabs.update(details.tabId, {
-        url: chrome.runtime.getURL('blocked.html') + `?url=${encodeURIComponent(url)}`
+        url: chrome.runtime.getURL('blocked.html') + `?url=${encodeURIComponent(url)}&risk=1.00&reason=cloudflare_tunnel`
       });
       return;
     }
 
-    if (!modelLoaded) return;
-
     const features = extractFeaturesFromUrl(url);
-    if (!features) return;
+    const risk = await predictProbability(features, url);
 
-    const p = await predictProbability(features);
-    const fused = 0.4 * h + 0.6 * p;
+    logSecurityEvent(url, risk, features);
 
-    console.log(`PhishGuard check: URL=${url}, Heuristic=${h}, ML=${p}, Fused=${fused}`);
-
-    if (fused >= BLOCK_THRESHOLD) {
+    if (risk >= BLOCK_THRESHOLD) {
       chrome.tabs.update(details.tabId, {
-        url: chrome.runtime.getURL('blocked.html') + `?url=${encodeURIComponent(url)}`
+        url: chrome.runtime.getURL('blocked.html') + `?url=${encodeURIComponent(url)}&risk=${risk}`
       });
-    } else if (fused >= 0.9) {  // WARN_THRESHOLD=0.9
-    
-  chrome.notifications.create({
-    type: 'basic',
-    iconUrl: 'icon.png',
-    title: 'PhishGuard warning',
-    message: `This site looks suspicious (risk ${(fused * 100).toFixed(0)}%). Click extension to learn more.`,
-    requireInteraction: true
-  });
-  // Inject content script and pass fused score
-  chrome.scripting.executeScript({
-    target: { tabId: details.tabId },
-    files: ['content_script.js']
-  }).then(() => {
-    chrome.tabs.sendMessage(details.tabId, { action: 'showWarningBanner', risk: fused });
-  }).catch(err => {
-    console.error('Script injection failed:', err);
-  });
-}
+    }
   } catch (e) {
-    console.error('Navigation check failed:', e);
+    console.error('Scan error:', e);
   }
+  }); // End storage get
 });
 
-// Message listener
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.action === 'getRiskForUrl') {
-    try {
-      const url = msg.url;
-      const hscore = heuristicScore(url);
-      let p = 0;
+    (async () => {
       try {
-        const features = extractFeaturesFromUrl(url);
-        if (features) p = predictProbability(features);
-      } catch (e) {
-        console.warn('Model inference failed', e);
+        const features = extractFeaturesFromUrl(msg.url);
+        const p = await predictProbability(features, msg.url);
+        sendResponse({ fused: p, features: features });
+      } catch (err) {
+        sendResponse({ error: String(err) });
       }
-      const fused = 0.4 * hscore + 0.6 * p;
-      sendResponse({ probability: p, heuristic: hscore, fused });
-    } catch (err) {
-      sendResponse({ error: String(err) });
-    }
+    })();
     return true;
   }
-
-  if (msg.action === 'uploadReport') {
-    chrome.storage.local.get(['phg_pending_uploads'], (items) => {
-      const q = items.phg_pending_uploads || [];
-      q.push(msg.report);
-      chrome.storage.local.set({ phg_pending_uploads: q }, () => sendResponse({ ok: true }));
-    });
-    return true;
+  
+  if (msg.action === 'allowSite') {
+      try {
+          const domain = new URL(msg.url).hostname;
+          chrome.storage.local.get(['allowlist', 'stats'], (res) => {
+              const list = res.allowlist || [];
+              const stats = res.stats || { scanned: 0, blocked: 0, totalRisk: 0, falsePositives: 0, falseNegatives: 0 };
+              
+              if (!list.includes(domain)) {
+                  list.push(domain);
+                  stats.falsePositives = (stats.falsePositives || 0) + 1; // Mark as false positive
+                  chrome.storage.local.set({ allowlist: list, stats: stats });
+              }
+              sendResponse({ success: true });
+          });
+      } catch(e) {
+          sendResponse({ success: false });
+      }
+      return true;
+  }
+  
+  if (msg.action === 'reportSite') {
+      try {
+          chrome.storage.local.get(['stats'], (res) => {
+              const stats = res.stats || { scanned: 0, blocked: 0, totalRisk: 0, falsePositives: 0, falseNegatives: 0 };
+              stats.falseNegatives = (stats.falseNegatives || 0) + 1;
+              chrome.storage.local.set({ stats: stats });
+              sendResponse({ success: true });
+          });
+      } catch(e) {
+         sendResponse({ success: false });
+      }
+      return true;
+  }
+  if (msg.action === 'domAnalysisReport') {
+    const { riskScore, reasons, url } = msg;
+    if (riskScore >= 0.8) {
+      chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+          if (tabs[0] && tabs[0].url === url) {
+              chrome.tabs.update(tabs[0].id, {
+                url: chrome.runtime.getURL('blocked.html') + `?url=${encodeURIComponent(url)}&risk=${riskScore}&reason=dom_heuristics`
+              });
+          }
+      });
+    } else if (riskScore > 0) {
+      logSecurityEvent(url, riskScore, { is_tunnel: 0, is_homograph: 0, suspicious_tld: 0, subdomain_count: 0 });
+    }
   }
 });

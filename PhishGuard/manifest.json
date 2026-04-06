@@ -19,27 +19,37 @@
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
-      "16": "icon.png",
-      "48": "icon.png",
-      "128": "icon.png"
+      "16": "icon.svg",
+      "48": "icon.svg",
+      "128": "icon.svg"
     }
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["content_script.js"],
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content_script.js"
+      ],
       "run_at": "document_idle"
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["model/model.json", "icon.png", "blocked.html"],
-      "matches": ["<all_urls>"]
+      "resources": [
+        "model/model.json",
+        "icon.svg",
+        "blocked.html"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
     }
   ],
   "icons": {
-    "16": "icon.png",
-    "48": "icon.png",
-    "128": "icon.png"
+    "16": "icon.svg",
+    "48": "icon.svg",
+    "128": "icon.svg"
   }
 }

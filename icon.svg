@@ -1,0 +1,31 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="gradient1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00F2FE" />
+      <stop offset="100%" stop-color="#4FACFE" />
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="3" />
+      <feOffset dx="0" dy="4" result="offsetblur" />
+      <feComponentTransfer>
+        <feFuncA type="linear" slope="0.3" />
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Outer Shield Shadow -->
+  <path d="M64 12C36 12 18 24 18 56C18 100 64 116 64 116C64 116 110 100 110 56C110 24 92 12 64 12Z" fill="black" fill-opacity="0.1" filter="url(#shadow)"/>
+  
+  <!-- Main Shield -->
+  <path d="M64 8C36 8 18 20 18 52C18 96 64 112 64 112C64 112 110 96 110 52C110 20 92 8 64 8Z" fill="url(#gradient1)"/>
+  
+  <!-- Glassmorphism Reflection -->
+  <path d="M64 15C42 15 28 25 28 52C28 85 55 100 64 105C73 100 100 85 100 52C100 25 86 15 64 15Z" fill="white" fill-opacity="0.2"/>
+  
+  <!-- Lock Icon -->
+  <path d="M64 40C58.48 40 54 44.48 54 50V58H50C47.79 58 46 59.79 46 62V82C46 84.21 47.79 86 50 86H78C80.21 86 82 84.21 82 82V62C82 59.79 80.21 58 78 58H74V50C74 44.48 69.52 40 64 40ZM64 46C66.21 46 68 47.79 68 50V58H60V50C60 47.79 61.79 46 64 46ZM64 76C61.79 76 60 74.21 60 72C60 69.79 61.79 68 64 68C66.21 68 68 69.79 68 72C68 74.21 66.21 76 64 76Z" fill="white"/>
+</svg>

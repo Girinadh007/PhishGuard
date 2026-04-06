@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <title>PhishGuard AI | Security Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles/premium.css">
+    <style>
+        body {
+            padding: 40px;
+            max-width: 1000px;
+            margin: 0 auto;
+            line-height: 1.6;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 24px;
+            margin-top: 40px;
+        }
+
+        .stat-card {
+            padding: 24px;
+            text-align: center;
+        }
+
+        .stat-val {
+            font-size: 3rem;
+            font-weight: 800;
+            color: var(--primary);
+            display: block;
+        }
+
+        .stat-label {
+            color: var(--text-dim);
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            letter-spacing: 1px;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 800;
+            margin-bottom: 8px;
+        }
+
+        .subtitle {
+            color: var(--text-dim);
+            margin-bottom: 40px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        th {
+            text-align: left;
+            color: var(--text-dim);
+            font-size: 0.8rem;
+            padding: 12px;
+            border-bottom: 1px solid var(--glass-border);
+        }
+
+        td {
+            padding: 12px;
+            font-size: 0.9rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+        }
+
+        .risk-high {
+            color: var(--danger);
+            font-weight: 600;
+        }
+
+        .risk-low {
+            color: var(--success);
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <h1>Security Dashboard</h1>
+        <p class="subtitle">Real-time Phishing Intelligence & Attack Surface Monitoring</p>
+    </header>
+
+    <div class="grid">
+        <div class="glass-card stat-card">
+            <span class="stat-val" id="totalScanned">0</span>
+            <span class="stat-label">Sites Scanned</span>
+        </div>
+        <div class="glass-card stat-card">
+            <span class="stat-val" id="totalBlocked" style="color: var(--danger)">0</span>
+            <span class="stat-label">Threats Prevented</span>
+        </div>
+        <div class="glass-card stat-card">
+            <span class="stat-val" id="truePositives" style="color: var(--success)">0</span>
+            <span class="stat-label">True Positives</span>
+        </div>
+        <div class="glass-card stat-card">
+            <span class="stat-val" id="falsePositives" style="color: var(--danger)">0</span>
+            <span class="stat-label">False Positives (Allowed)</span>
+        </div>
+        <div class="glass-card stat-card">
+            <span class="stat-val" id="trueNegatives" style="color: var(--success)">0</span>
+            <span class="stat-label">True Negatives</span>
+        </div>
+        <div class="glass-card stat-card">
+            <span class="stat-val" id="falseNegatives" style="color: var(--danger)">0</span>
+            <span class="stat-label">False Negatives (Reported)</span>
+        </div>
+    </div>
+
+    <div class="glass-card" style="margin-top: 40px; padding: 24px;">
+        <h2>Recent Activity Log</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>TIMESTAMP</th>
+                    <th>DOMAIN</th>
+                    <th>RISK SCORE</th>
+                    <th>FLAGS</th>
+                </tr>
+            </thead>
+            <tbody id="logTable">
+                <!-- Logs added here -->
+            </tbody>
+        </table>
+    </div>
+
+    <script src="dashboard.js"></script>
+</body>
+
+</html>

@@ -10,7 +10,7 @@ async function loadModel(modelUrl) {
 
 // Expect features object keys same as Python feature_names order
 function extractFeaturesFromUrl(url) {
-const a = new URL(url.startsWith('http') ? url : ('http://' + url));
+  const a = new URL(url.startsWith('http') ? url : ('http://' + url));
   const host = a.hostname || '';
   const path = a.pathname || '';
   const q = a.search || '';
@@ -30,7 +30,15 @@ const a = new URL(url.startsWith('http') ? url : ('http://' + url));
   features['num_digits'] = (url.match(/\d/g) || []).length;
   features['entropy'] = shannonEntropy(full);
 
-  const SUSP_TOK = ['login', 'secure', 'account', 'update', 'verify', 'bank', 'confirm', 'signin'];
+  // New Features for Zero-Day & Tunneling
+  features['is_tunnel'] = /ngrok|cloudflare|localtunnel|webhook|serveo|telebit/.test(host) ? 1 : 0;
+  features['is_homograph'] = host.includes('xn--') ? 1 : 0;
+  features['subdomain_count'] = (host.split('.').length - 2);
+
+  const suspiciousTlds = ['.xyz', '.top', '.link', '.pw', '.club', '.online', '.site', '.work', '.icu', '.gq', '.tk', '.ml'];
+  features['suspicious_tld'] = suspiciousTlds.some(tld => host.endsWith(tld)) ? 1 : 0;
+
+  const SUSP_TOK = ['login', 'secure', 'account', 'update', 'verify', 'bank', 'confirm', 'signin', 'wp-admin', 'admin', 'auth'];
   SUSP_TOK.forEach(tok => {
     features['tok_' + tok] = url.toLowerCase().includes(tok) ? 1 : 0;
   });
@@ -58,14 +66,35 @@ function evalTree(node, features) {
   return evalTree(node.right, features);
 }
 
-function predictProbability(features) {
+const predictionCache = new Map();
+const CACHE_SIZE_LIMIT = 500;
+
+function predictProbability(features, urlForCache = null) {
   if (!MODEL) throw new Error("Model not loaded");
+
+  // Optional: Caching logic if url is provided and cache hits
+  if (urlForCache && predictionCache.has(urlForCache)) {
+    return predictionCache.get(urlForCache);
+  }
+
   const trees = MODEL.trees;
   let sum = 0;
   for (const t of trees) {
     sum += evalTree(t, features);
   }
-  return sum / trees.length; // average probability
+  
+  const prob = sum / trees.length; // average probability
+
+  // Update Cache
+  if (urlForCache) {
+    if (predictionCache.size > CACHE_SIZE_LIMIT) {
+      // LRU eviction - Map iterates in insertion order, so delete the first key
+      predictionCache.delete(predictionCache.keys().next().value);
+    }
+    predictionCache.set(urlForCache, prob);
+  }
+
+  return prob;
 }
 
 export { loadModel, extractFeaturesFromUrl, predictProbability };

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>PhishGuard AI | Restricted Access</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles/premium.css">
+    <style>
+        body {
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+
+        .danger-card {
+            max-width: 600px;
+            padding: 40px;
+        }
+
+        .icon-shield {
+            font-size: 5rem;
+            color: var(--danger);
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            font-size: 3rem;
+            margin-bottom: 10px;
+            color: var(--danger);
+        }
+
+        .url-display {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 12px;
+            border-radius: 8px;
+            font-family: monospace;
+            margin: 20px 0;
+            word-break: break-all;
+        }
+
+        .reason {
+            color: var(--text-dim);
+            margin-bottom: 30px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="glass-card danger-card">
+        <div class="icon-shield">⚠️</div>
+        <h1>Threat Blocked</h1>
+        <p>PhishGuard AI has identified a high-probability phishing attempt.</p>
+
+        <div class="url-display" id="urlDisplay">Unknown URL</div>
+
+        <p class="reason">
+            This site exhibits characteristics of <strong>zero-day phishing</strong> or <strong>tunneled domain
+                masking</strong>.
+            Access has been restricted to protect your credentials.
+        </p>
+
+        <div style="display: flex; gap: 20px; justify-content: center; margin-top: 20px">
+            <button class="premium-btn" onclick="history.back()">Go Back to Safety</button>
+            <button class="premium-btn" style="background: rgba(255,255,255,0.05); color: var(--text-dim)"
+                id="allowSiteBtn">Allow this site (I know it's safe)</button>
+        </div>
+    </div>
+
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const url = params.get('url');
+        const reason = params.get('reason');
+        
+        if (url) document.getElementById('urlDisplay').textContent = url;
+        
+        if (reason === 'cloudflare_tunnel') {
+            document.querySelector('.reason').innerHTML = `
+                <strong>Why was this blocked?</strong><br><br>
+                This site is using a <code>.trycloudflare.net</code> tunnel. Attackers frequently use these free tunnels to host phishing pages that bypass traditional IP firewalls. 
+                <br><br><em>Security Tip:</em> Legitimate businesses almost never use temporary tunnel domains for login pages.
+            `;
+        } else if (reason === 'dom_heuristics') {
+            document.querySelector('.reason').innerHTML = `
+                <strong>Why was this blocked?</strong><br><br>
+                We detected highly suspicious HTML structures on this page. Examples include hidden elements, external form submission targets, or password fields over an unencrypted connection.
+                <br><br><em>Security Tip:</em> Even if a page limits what you can see visually, PhishGuard inspects the actual HTML code for hidden manipulation tactics.
+            `;
+        } else {
+             document.querySelector('.reason').innerHTML = `
+                <strong>Why was this blocked?</strong><br><br>
+                The PhishGuard ML model detected anomalies common in phishing. 
+                Are you sure you recognize this exact domain spelling? Look for extra hyphens, numbers replacing letters (like '0' instead of 'o'), or unusual domain endings.
+            `;
+        }
+        
+        document.getElementById('allowSiteBtn').addEventListener('click', () => {
+            if (confirm("Are you absolutely sure this site is safe? Allowing it will mark it as a False Positive and it will not be blocked again.")) {
+               chrome.runtime.sendMessage({ action: 'allowSite', url: url }, (response) => {
+                   window.location.href = url;
+               });
+            }
+        });
+    </script>
+</body>
+
+</html>

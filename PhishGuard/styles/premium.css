@@ -1,0 +1,101 @@
+:root {
+    --primary: #6366f1;
+    --secondary: #a855f7;
+    --danger: #ef4444;
+    --warning: #f59e0b;
+    --success: #10b981;
+    --bg-dark: #0f172a;
+    --card-bg: rgba(30, 41, 59, 0.7);
+    --text-main: #f8fafc;
+    --text-dim: #94a3b8;
+    --glass-border: rgba(255, 255, 255, 0.1);
+}
+
+body {
+    font-family: 'Outfit', -apple-system, sans-serif;
+    background: var(--bg-dark);
+    color: var(--text-main);
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+}
+
+.glass-card {
+    background: var(--card-bg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--glass-border);
+    border-radius: 16px;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+}
+
+.speedometer-container {
+    position: relative;
+    width: 120px;
+    height: 60px;
+    margin: 1rem auto;
+    overflow: hidden;
+}
+
+.speedometer-bg {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    border: 12px solid rgba(255, 255, 255, 0.05);
+    border-bottom-color: transparent;
+    border-left-color: transparent;
+    transform: rotate(-135deg);
+}
+
+.speedometer-fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    border: 12px solid var(--primary);
+    border-bottom-color: transparent;
+    border-left-color: transparent;
+    transform: rotate(-135deg);
+    transition: transform 1s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.status-badge {
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.status-safe {
+    background: rgba(16, 185, 129, 0.2);
+    color: var(--success);
+}
+
+.status-warn {
+    background: rgba(245, 158, 11, 0.2);
+    color: var(--warning);
+}
+
+.status-danger {
+    background: rgba(239, 68, 68, 0.2);
+    color: var(--danger);
+}
+
+button.premium-btn {
+    background: linear-gradient(45deg, var(--primary), var(--secondary));
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+button.premium-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgba(168, 85, 247, 0.4);
+}

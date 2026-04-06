@@ -1,81 +1,122 @@
 <!doctype html>
 <html lang="en">
+
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>PhishGuard</title>
+  <title>PhishGuard Pro</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles/premium.css">
   <style>
     body {
-      font-family: Arial, sans-serif;
-      width: 320px;
-      margin: 0;
-      padding: 12px;
-      color: #111;
-      background: #fff;
+      width: 340px;
+      padding: 16px;
+      box-sizing: border-box;
     }
+
     .header {
-      display:flex;
-      align-items:center;
-      gap:10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
     }
-    #icon {
-      width:36px; height:36px;
-      border-radius:6px;
+
+    .logo-text {
+      font-weight: 800;
+      font-size: 1.2rem;
+      letter-spacing: -0.5px;
     }
-    h1 { font-size:16px; margin:0; }
-    p.small { font-size:12px; color:#555; margin:4px 0 8px; }
-    .url { font-size:13px; color:#0b5394; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; width:100%; }
-    .risk-bar {
-      height:10px;
-      width:100%;
-      background:#eee;
-      border-radius:6px;
-      margin:8px 0;
-      overflow:hidden;
+
+    .logo-text span {
+      color: var(--primary);
     }
-    .risk-fill {
-      height:100%;
-      width:0%;
-      background:linear-gradient(90deg,#ff6b6b,#ffcc00);
+
+    .url-info {
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      margin-bottom: 15px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
-    .risk-text { font-weight:600; font-size:14px; margin-top:4px; }
-    button {
-      padding:8px 10px;
-      margin:6px 4px 0 0;
-      border-radius:6px;
-      border: none;
-      cursor:pointer;
-      font-size:13px;
+
+    .risk-score {
+      text-align: center;
+      margin: 20px 0;
     }
-    .row { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:8px; }
-    label { font-size:13px; color:#444; display:flex; gap:8px; align-items:center; }
-    footer { font-size:11px; color:#888; margin-top:10px; text-align:center; }
+
+    .risk-value {
+      font-size: 2.5rem;
+      font-weight: 800;
+      display: block;
+    }
+
+    .risk-label {
+      color: var(--text-dim);
+      font-size: 0.9rem;
+    }
+
+    .features-list {
+      margin-top: 20px;
+    }
+
+    .feature-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+      font-size: 0.85rem;
+      padding: 8px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .f-icon {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .footer-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    .footer-actions button {
+      flex: 1;
+      font-size: 0.75rem;
+    }
   </style>
 </head>
-<body>
+
+<body class="glass-card">
   <div class="header">
-    <img id="icon" src="icon.png" alt="icon">
-    <div>
-      <h1>PHISHGUARD</h1>
-      <p class="small">Realtime URL detection (local)</p>
-    </div>
+    <div class="logo-text">Phish<span>Guard</span> AI</div>
+    <span id="statusBadge" class="status-badge status-safe">Scanning</span>
   </div>
 
-  <div id="content">
-    <div style="margin-top:10px">
-      <div class="url" id="currentUrl">Loading current tab…</div>
-      <div class="risk-bar" title="Risk">
-        <div class="risk-fill" id="riskFill"></div>
-      </div>
-      <div class="risk-text" id="riskText">Risk: —</div>
-      <div class="explain small" id="explain">Confidence and heuristic fused score shown here.</div>
-    </div>
+  <div class="url-info" id="currentUrl">Detecting environment...</div>
 
-    <footer>
-      Model: <span id="modelDate">local</span>
-    </footer>
+  <div class="risk-score">
+    <div class="speedometer-container">
+      <div class="speedometer-bg"></div>
+      <div class="speedometer-fill" id="riskNeedle"></div>
+    </div>
+    <span class="risk-value" id="riskValue">0%</span>
+    <span class="risk-label">Threat Probability</span>
+  </div>
+
+  <div class="features-list" id="featureFlags">
+    <!-- Dynamic feature flags like "Tunneling Detected" -->
+  </div>
+
+  <div class="footer-actions">
+    <button class="premium-btn" id="openDashboard">Full Dashboard</button>
+    <button class="premium-btn" id="toggleSafeMode" style="background: rgba(255,255,255,0.1)">Safe Mode: Off</button>
   </div>
 
   <script src="popup.js"></script>
 </body>
+
 </html>
