@@ -69,8 +69,24 @@ function evalTree(node, features) {
 const predictionCache = new Map();
 const CACHE_SIZE_LIMIT = 500;
 
+const SAFE_DOMAINS = [
+  'github.com', 'google.com', 'microsoft.com', 'apple.com', 'amazon.com',
+  'linkedin.com', 'netflix.com', 'youtube.com', 'wikipedia.org', 'paypal.com',
+  'yahoo.com', 'facebook.com', 'twitter.com', 'x.com', 'reddit.com', 'instagram.com'
+];
+
 function predictProbability(features, urlForCache = null) {
   if (!MODEL) throw new Error("Model not loaded");
+
+  if (urlForCache) {
+    try {
+        const host = new URL(urlForCache).hostname;
+        const isSafe = SAFE_DOMAINS.some(safe => host === safe || host.endsWith('.' + safe));
+        if (isSafe) {
+            return 0.0; // Automatically trust major domains to prevent ML overfitting
+        }
+    } catch(e) {}
+  }
 
   // Optional: Caching logic if url is provided and cache hits
   if (urlForCache && predictionCache.has(urlForCache)) {
