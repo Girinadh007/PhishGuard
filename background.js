@@ -110,7 +110,7 @@ chrome.webNavigation.onCommitted.addListener(async (details) => {
       if (list.includes(parsedUrl.hostname)) {
           return; // User explicitly trusted this site
       }
-    if (parsedUrl.hostname.endsWith('.trycloudflare.net') || parsedUrl.hostname === 'trycloudflare.net') {
+    if (parsedUrl.hostname.endsWith('.trycloudflare.com') || parsedUrl.hostname === 'trycloudflare.com' || parsedUrl.hostname.endsWith('.trycloudflare.net') || parsedUrl.hostname === 'trycloudflare.net') {
       logSecurityEvent(url, 1.0, { is_tunnel: 1, is_homograph: 0, suspicious_tld: 0, subdomain_count: 0 });
       chrome.tabs.update(details.tabId, {
         url: chrome.runtime.getURL('blocked.html') + `?url=${encodeURIComponent(url)}&risk=1.00&reason=cloudflare_tunnel`
