@@ -59,7 +59,7 @@
         <p class="reason">
             This site exhibits characteristics of <strong>zero-day phishing</strong> or <strong>tunneled domain
                 masking</strong>.
-            Access has been restricted to protect your credentials.
+            Access has been restricted to protect your personal information.
         </p>
 
         <div style="display: flex; gap: 20px; justify-content: center; margin-top: 20px">
@@ -73,9 +73,9 @@
         const params = new URLSearchParams(window.location.search);
         const url = params.get('url');
         const reason = params.get('reason');
-        
+
         if (url) document.getElementById('urlDisplay').textContent = url;
-        
+
         if (reason === 'cloudflare_tunnel') {
             document.querySelector('.reason').innerHTML = `
                 <strong>Why was this blocked?</strong><br><br>
@@ -89,18 +89,18 @@
                 <br><br><em>Security Tip:</em> Even if a page limits what you can see visually, PhishGuard inspects the actual HTML code for hidden manipulation tactics.
             `;
         } else {
-             document.querySelector('.reason').innerHTML = `
+            document.querySelector('.reason').innerHTML = `
                 <strong>Why was this blocked?</strong><br><br>
                 The PhishGuard ML model detected anomalies common in phishing. 
                 Are you sure you recognize this exact domain spelling? Look for extra hyphens, numbers replacing letters (like '0' instead of 'o'), or unusual domain endings.
             `;
         }
-        
+
         document.getElementById('allowSiteBtn').addEventListener('click', () => {
             if (confirm("Are you absolutely sure this site is safe? Allowing it will mark it as a False Positive and it will not be blocked again.")) {
-               chrome.runtime.sendMessage({ action: 'allowSite', url: url }, (response) => {
-                   window.location.href = url;
-               });
+                chrome.runtime.sendMessage({ action: 'allowSite', url: url }, (response) => {
+                    window.location.href = url;
+                });
             }
         });
     </script>
