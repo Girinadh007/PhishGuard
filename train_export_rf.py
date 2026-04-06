@@ -9,7 +9,9 @@ from sklearn.metrics import classification_report, roc_auc_score
 import joblib
 
 # --- Feature extraction ---
-SUSPICIOUS_TOKENS = ['login','secure','account','update','verify','bank','confirm','signin']
+SUSPICIOUS_TOKENS = ['login', 'secure', 'account', 'update', 'verify', 'bank', 'confirm', 'signin', 'wp-admin', 'admin', 'auth']
+SUSPICIOUS_TLDS = ['.xyz', '.top', '.link', '.pw', '.club', '.online', '.site', '.work', '.icu', '.gq', '.tk', '.ml']
+TUNNEL_DOMAINS = ['ngrok', 'cloudflare', 'localtunnel', 'webhook', 'serveo', 'telebit']
 
 def shannon_entropy(s):
     if not s:
@@ -38,6 +40,13 @@ def extract_features_from_url(url):
     features['has_ip'] = int(bool(re.match(r'^\d+\.\d+\.\d+\.\d+$', host)))
     features['num_digits'] = sum(c.isdigit() for c in url)
     features['entropy'] = shannon_entropy(full)
+    
+    # New Features for Zero-Day & Tunneling
+    features['is_tunnel'] = int(any(td in host for td in TUNNEL_DOMAINS))
+    features['is_homograph'] = int('xn--' in host)
+    features['subdomain_count'] = max(0, host.count('.') - 1)
+    features['suspicious_tld'] = int(any(host.endswith(tld) for tld in SUSPICIOUS_TLDS))
+
     # suspicious tokens
     for tok in SUSPICIOUS_TOKENS:
         features[f'tok_{tok}'] = int(tok in url.lower())

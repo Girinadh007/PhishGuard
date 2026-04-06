@@ -1,94 +1,95 @@
 // popup.js
-// Popup interacts with the background service worker to request a risk score for the active tab.
-// It also allows opt-in reporting (stores a hashed URL) and triggers a model update message.
-
 const currentUrlEl = document.getElementById('currentUrl');
-const riskFillEl = document.getElementById('riskFill');
-const riskTextEl = document.getElementById('riskText');
-const explainEl = document.getElementById('explain');
-const reportBtn = document.getElementById('reportBtn');
-const updateModelBtn = document.getElementById('updateModel');
-const optInCheckbox = document.getElementById('optInReporting');
-const modelDateEl = document.getElementById('modelDate');
-const openDashboardBtn = document.getElementById('openDashboard');
+const riskNeedle = document.getElementById('riskNeedle');
+const riskValueEl = document.getElementById('riskValue');
+const statusBadge = document.getElementById('statusBadge');
+const featureFlagsEl = document.getElementById('featureFlags');
+const dashboardBtn = document.getElementById('openDashboard');
+const safeModeBtn = document.getElementById('toggleSafeMode');
 
-let currentTabUrl = null;
-let lastScore = null;
+let safeModeActive = false;
 
-async function sha256hex(msg) {
-  const enc = new TextEncoder();
-  const data = enc.encode(msg);
-  const hash = await crypto.subtle.digest('SHA-256', data);
-  const bytes = Array.from(new Uint8Array(hash));
-  return bytes.map(b => b.toString(16).padStart(2, '0')).join('');
-}
+function updateUI(data) {
+  const fused = data.fused || 0;
+  const pct = Math.round(fused * 100);
 
-function setRiskUI(score) {
-  // score: 0..1
-  const pct = Math.round(score * 100);
-  riskFillEl.style.width = pct + '%';
-  riskTextEl.textContent = `Risk: ${pct}%`;
-  if (pct < 40) explainEl.textContent = 'Low risk — proceed normally.';
-  else if (pct < 90) explainEl.textContent = 'Suspicious — be careful (check domain & TLS).';
-  else explainEl.textContent = 'High risk — recommended block or avoid entering credentials.';
-  lastScore = score;
-}
+  // Update Needle (rotate from -135deg to +45deg)
+  const rotation = -135 + (fused * 180);
+  riskNeedle.style.transform = `rotate(${rotation}deg)`;
+  riskValueEl.textContent = `${pct}%`;
 
-function showError(msg) {
-  riskTextEl.textContent = 'Error';
-  explainEl.textContent = msg;
-  riskFillEl.style.width = '0%';
-}
+  // Update Status Badge
+  if (pct < 30) {
+    statusBadge.textContent = "Safe";
+    statusBadge.className = "status-badge status-safe";
+    riskNeedle.style.borderColor = "#10b981";
+  } else if (pct < 75) {
+    statusBadge.textContent = "Suspicious";
+    statusBadge.className = "status-badge status-warn";
+    riskNeedle.style.borderColor = "#f59e0b";
+  } else {
+    statusBadge.textContent = "DANGER";
+    statusBadge.className = "status-badge status-danger";
+    riskNeedle.style.borderColor = "#ef4444";
+  }
 
-async function requestRiskForTab(url) {
-  // send message to background service worker and wait for response
-  return new Promise((resolve, reject) => {
-    chrome.runtime.sendMessage({ action: 'getRiskForUrl', url }, (resp) => {
-      if (chrome.runtime.lastError) {
-        return reject(chrome.runtime.lastError.message);
-      }
-      resolve(resp);
-    });
-  });
-}
+  // Update Feature Flags
+  featureFlagsEl.innerHTML = '';
 
-async function init() {
-  // load stored opt-in
-  chrome.storage.local.get(['phg_opt_in', 'model_meta'], (items) => {
-    optInCheckbox.checked = !!items.phg_opt_in;
-    if (items.model_meta && items.model_meta.updated_at) {
-      modelDateEl.textContent = items.model_meta.updated_at;
-    } else {
-      modelDateEl.textContent = 'local';
-    }
-  });
+  const addFlag = (text, isDanger) => {
+    const div = document.createElement('div');
+    div.className = 'feature-item';
+    div.innerHTML = `<span class="f-icon" style="background:${isDanger ? '#ef4444' : '#10b981'}"></span> ${text}`;
+    featureFlagsEl.appendChild(div);
+  };
 
-  // get current active tab url
-  try {
-    const [tab] = await new Promise((res) => chrome.tabs.query({ active: true, currentWindow: true }, res));
-    if (tab && tab.url) {
-      currentTabUrl = tab.url;
-      currentUrlEl.textContent = currentTabUrl;
-      // ask background for risk
-      const resp = await requestRiskForTab(currentTabUrl);
-      if (!resp) throw new Error('No response from background');
-      if (resp.error) throw new Error(resp.error);
-      // resp should have {probability:0..1, heuristic:0..1, fused:0..1}
-      const fused = resp.fused ?? resp.probability ?? 0;
-      setRiskUI(fused);
-    } else {
-      currentUrlEl.textContent = 'Unable to get current tab URL';
-      showError('No URL');
-    }
-  } catch (e) {
-    currentUrlEl.textContent = 'Error getting tab';
-    showError(String(e));
+  if (data.features) {
+    if (data.features.is_tunnel) addFlag("Encrypted Tunnel Detected (Ngrok/CF)", true);
+    if (data.features.is_homograph) addFlag("Visual Homograph (IDN) Detected", true);
+    if (data.features.suspicious_tld) addFlag("High-Risk TLD (Reputation Low)", true);
+    if (data.features.subdomain_count > 2) addFlag("Deep Subdomain Nesting", true);
+    if (data.features.entropy > 4.5) addFlag("High Character Entropy", true);
   }
 }
 
-// Report button: store hashed url (anonymous) and optionally send to background for upload
+async function init() {
+  // Load Safe Mode State
+  chrome.storage.local.get(['safeMode'], (res) => {
+    safeModeActive = !!res.safeMode;
+    updateSafeModeUI();
+  });
 
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab && tab.url) {
+      currentUrlEl.textContent = new URL(tab.url).hostname;
 
+      chrome.runtime.sendMessage({ action: 'getRiskForUrl', url: tab.url }, (resp) => {
+        if (resp && !resp.error) {
+          updateUI(resp);
+        }
+      });
+    }
+  } catch (e) {
+    currentUrlEl.textContent = "Error loading tab data";
+  }
+}
 
+function updateSafeModeUI() {
+  safeModeBtn.textContent = `Safe Mode: ${safeModeActive ? 'ON' : 'OFF'}`;
+  safeModeBtn.style.background = safeModeActive ? 'rgba(99, 102, 241, 0.3)' : 'rgba(255,255,255,0.1)';
+}
+
+safeModeBtn.addEventListener('click', () => {
+  safeModeActive = !safeModeActive;
+  chrome.storage.local.set({ safeMode: safeModeActive });
+  updateSafeModeUI();
+  // Notify background to re-check current tab
+  chrome.runtime.sendMessage({ action: 'toggleSafeMode', active: safeModeActive });
+});
+
+dashboardBtn.addEventListener('click', () => {
+  chrome.tabs.create({ url: 'dashboard.html' });
+});
 
 init();

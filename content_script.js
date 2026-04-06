@@ -24,3 +24,50 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
   }
 });
+
+function performDOMAnalysis() {
+    let domRiskScore = 0;
+    const reasons = [];
+
+    if (window.location.protocol !== 'https:') {
+        const passwordInputs = document.querySelectorAll('input[type="password"]');
+        if (passwordInputs.length > 0) {
+            domRiskScore += 0.6;
+            reasons.push("Password field detected on unsecured HTTP connection.");
+        }
+    }
+
+    const forms = document.querySelectorAll('form');
+    let externalForms = 0;
+    forms.forEach(form => {
+        const action = form.getAttribute('action');
+        if (action && action.startsWith('http')) {
+            try {
+                const actionUrl = new URL(action);
+                if (actionUrl.hostname !== window.location.hostname) {
+                    externalForms++;
+                }
+            } catch (e) {}
+        }
+    });
+
+    if (externalForms > 0) {
+        domRiskScore += 0.4;
+        reasons.push("Data submission points to an external, unseen domain.");
+    }
+
+    if (domRiskScore > 0) {
+       chrome.runtime.sendMessage({ 
+           action: 'domAnalysisReport', 
+           riskScore: domRiskScore, 
+           reasons: reasons,
+           url: window.location.href 
+       });
+    }
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', performDOMAnalysis);
+} else {
+    performDOMAnalysis();
+}
