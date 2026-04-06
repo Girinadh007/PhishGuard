@@ -11,12 +11,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         banner.style.top = '0';
         banner.style.left = '0';
         banner.style.right = '0';
-        banner.style.backgroundColor = 'red';
-        banner.style.color = '#fff';
-        banner.style.padding = '10px';
-        banner.style.fontWeight = 'bold';
+        banner.style.backgroundColor = 'rgba(153, 27, 27, 0.95)'; // Deep red, much easier on the eyes
+        banner.style.color = '#fdf2f8'; // Off-white
+        banner.style.padding = '14px';
+        banner.style.fontWeight = '600';
         banner.style.textAlign = 'center';
         banner.style.zIndex = '999999';
+        banner.style.backdropFilter = 'blur(8px)';
+        banner.style.boxShadow = '0 4px 6px rgba(0,0,0,0.2)';
+        banner.style.fontFamily = 'sans-serif';
         banner.textContent = `Warning: This site looks suspicious (risk ${(risk * 100).toFixed(1)}%)!`;
 
         document.documentElement.appendChild(banner);

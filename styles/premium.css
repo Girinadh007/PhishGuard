@@ -1,7 +1,7 @@
 :root {
     --primary: #6366f1;
     --secondary: #a855f7;
-    --danger: #ef4444;
+    --danger: #dc2626; /* Softer, slightly darker red */
     --warning: #f59e0b;
     --success: #10b981;
     --bg-dark: #0f172a;
