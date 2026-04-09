@@ -158,9 +158,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
               if (!list.includes(domain)) {
                   list.push(domain);
                   stats.falsePositives = (stats.falsePositives || 0) + 1; // Mark as false positive
-                  chrome.storage.local.set({ allowlist: list, stats: stats });
+                  // Wait for storage write to complete BEFORE sending response
+                  chrome.storage.local.set({ allowlist: list, stats: stats }, () => {
+                      sendResponse({ success: true });
+                  });
+              } else {
+                  // Already in allowlist, respond immediately
+                  sendResponse({ success: true });
               }
-              sendResponse({ success: true });
           });
       } catch(e) {
           sendResponse({ success: false });

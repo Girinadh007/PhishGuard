@@ -97,9 +97,24 @@
         }
 
         document.getElementById('allowSiteBtn').addEventListener('click', () => {
+            if (!url) {
+                alert('No URL to allow. Please go back and try again.');
+                return;
+            }
             if (confirm("Are you absolutely sure this site is safe? Allowing it will mark it as a False Positive and it will not be blocked again.")) {
+                const btn = document.getElementById('allowSiteBtn');
+                btn.textContent = 'Allowing...';
+                btn.disabled = true;
+
                 chrome.runtime.sendMessage({ action: 'allowSite', url: url }, (response) => {
-                    window.location.href = url;
+                    if (response && response.success) {
+                        // Storage is written — safe to navigate now
+                        window.location.href = url;
+                    } else {
+                        btn.textContent = 'Allow this site (I know it\'s safe)';
+                        btn.disabled = false;
+                        alert('Failed to add site to allowlist. Please try again.');
+                    }
                 });
             }
         });
