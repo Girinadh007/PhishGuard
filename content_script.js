@@ -41,22 +41,23 @@ function performDOMAnalysis() {
     }
 
     const forms = document.querySelectorAll('form');
-    let externalForms = 0;
+    let dangerousForms = 0;
     forms.forEach(form => {
         const action = form.getAttribute('action');
-        if (action && action.startsWith('http')) {
+        const hasPassword = form.querySelector('input[type="password"]') !== null;
+        if (action && action.startsWith('http') && hasPassword) {
             try {
                 const actionUrl = new URL(action);
                 if (actionUrl.hostname !== window.location.hostname) {
-                    externalForms++;
+                    dangerousForms++;
                 }
             } catch (e) {}
         }
     });
 
-    if (externalForms > 0) {
-        domRiskScore += 0.4;
-        reasons.push("Data submission points to an external, unseen domain.");
+    if (dangerousForms > 0) {
+        domRiskScore += 0.5;
+        reasons.push("Password submission points to an external, unseen domain.");
     }
 
     if (domRiskScore > 0) {

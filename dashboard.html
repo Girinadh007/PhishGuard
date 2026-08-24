@@ -98,20 +98,38 @@
             <span class="stat-label">Threats Prevented</span>
         </div>
         <div class="glass-card stat-card">
-            <span class="stat-val" id="truePositives" style="color: var(--success)">0</span>
-            <span class="stat-label">True Positives</span>
+            <span class="stat-val" id="suspiciousSites" style="color: var(--warning)">0</span>
+            <span class="stat-label">Suspicious Sites Checked</span>
         </div>
         <div class="glass-card stat-card">
-            <span class="stat-val" id="falsePositives" style="color: var(--danger)">0</span>
-            <span class="stat-label">False Positives (Allowed)</span>
+            <span class="stat-val" id="fakeLogins" style="color: var(--danger)">0</span>
+            <span class="stat-label">Fake Login Pages Stopped</span>
         </div>
-        <div class="glass-card stat-card">
-            <span class="stat-val" id="trueNegatives" style="color: var(--success)">0</span>
-            <span class="stat-label">True Negatives</span>
+    </div>
+
+    <div class="grid">
+        <div class="glass-card" style="padding: 24px;">
+            <h2 style="margin-top: 0;">🔒 Your Privacy</h2>
+            <p style="color: var(--success); font-weight: 600; font-size: 1.2rem;">Status: Protected</p>
+            <p style="color: var(--text-dim); font-size: 0.9rem;">
+                PhishGuard analyzes websites directly on your device. Your browsing activity is <strong>not</strong> sent to a remote PhishGuard server for detection.
+            </p>
+            <ul style="color: var(--text-dim); font-size: 0.85rem; padding-left: 20px;">
+                <li>🟢 Detection performed on this device</li>
+                <li>🟢 Security history stored locally</li>
+                <li>🟢 No browsing history uploaded for detection</li>
+            </ul>
         </div>
-        <div class="glass-card stat-card">
-            <span class="stat-val" id="falseNegatives" style="color: var(--danger)">0</span>
-            <span class="stat-label">False Negatives (Reported)</span>
+        
+        <div class="glass-card" style="padding: 24px;">
+            <h2 style="margin-top: 0;">🧠 Your Security Awareness</h2>
+            <p style="color: var(--primary); font-weight: 600; font-size: 1.2rem;">Status: Growing</p>
+            <p style="color: var(--text-dim); font-size: 0.9rem;">You've learned about:</p>
+            <ul style="color: var(--text-dim); font-size: 0.85rem; list-style-type: '✓ ';">
+                <li>Suspicious website addresses</li>
+                <li>Look-alike domains</li>
+                <li>Temporary hosting risks</li>
+            </ul>
         </div>
     </div>
 
@@ -122,8 +140,8 @@
                 <tr>
                     <th>TIMESTAMP</th>
                     <th>DOMAIN</th>
-                    <th>RISK SCORE</th>
-                    <th>FLAGS</th>
+                    <th>RISK LEVEL</th>
+                    <th>WARNING SIGNS</th>
                 </tr>
             </thead>
             <tbody id="logTable">

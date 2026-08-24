@@ -18,19 +18,29 @@ function updateUI(data) {
   riskNeedle.style.transform = `rotate(${rotation}deg)`;
   riskValueEl.textContent = `${pct}%`;
 
-  // Update Status Badge
+  const safeInfoEl = document.getElementById('safeInfo');
+
+  // Update Status Badge (4-tier)
   if (pct < 30) {
     statusBadge.textContent = "Safe";
     statusBadge.className = "status-badge status-safe";
     riskNeedle.style.borderColor = "#10b981";
-  } else if (pct < 75) {
+    safeInfoEl.style.display = "block";
+  } else if (pct < 70) {
     statusBadge.textContent = "Suspicious";
     statusBadge.className = "status-badge status-warn";
     riskNeedle.style.borderColor = "#f59e0b";
-  } else {
-    statusBadge.textContent = "DANGER";
+    safeInfoEl.style.display = "none";
+  } else if (pct < 90) {
+    statusBadge.textContent = "High Risk";
     statusBadge.className = "status-badge status-danger";
     riskNeedle.style.borderColor = "#ef4444";
+    safeInfoEl.style.display = "none";
+  } else {
+    statusBadge.textContent = "Malicious";
+    statusBadge.className = "status-badge status-danger";
+    riskNeedle.style.borderColor = "#991b1b";
+    safeInfoEl.style.display = "none";
   }
 
   // Update Feature Flags
@@ -44,11 +54,12 @@ function updateUI(data) {
   };
 
   if (data.features) {
-    if (data.features.is_tunnel) addFlag("Encrypted Tunnel Detected (Ngrok/CF)", true);
-    if (data.features.is_homograph) addFlag("Visual Homograph (IDN) Detected", true);
-    if (data.features.suspicious_tld) addFlag("High-Risk TLD (Reputation Low)", true);
-    if (data.features.subdomain_count > 2) addFlag("Deep Subdomain Nesting", true);
-    if (data.features.entropy > 4.5) addFlag("High Character Entropy", true);
+    if (data.features.is_tunnel) addFlag("Website uses temporary hosting", true);
+    if (data.features.is_homograph) addFlag("Possible look-alike characters detected", true);
+    if (data.features.brand_impersonation) addFlag("Address imitates a trusted brand", true);
+    if (data.features.suspicious_tld) addFlag("Unusual website extension", true);
+    if (data.features.subdomain_count > 2) addFlag("Unusual website address structure", true);
+    if (data.features.entropy > 4.5) addFlag("Unusual/random address pattern", true);
   }
 }
 

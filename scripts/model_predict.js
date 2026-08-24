@@ -31,7 +31,7 @@ function extractFeaturesFromUrl(url) {
   features['entropy'] = shannonEntropy(full);
 
   // New Features for Zero-Day & Tunneling
-  features['is_tunnel'] = /ngrok|cloudflare|localtunnel|webhook|serveo|telebit/.test(host) ? 1 : 0;
+  features['is_tunnel'] = /(ngrok(-free)?\.app|ngrok\.io|trycloudflare\.com|localtunnel\.me|serveo\.net|telebit\.io)/.test(host) ? 1 : 0;
   features['is_homograph'] = host.includes('xn--') ? 1 : 0;
   features['subdomain_count'] = (host.split('.').length - 2);
 
@@ -72,7 +72,9 @@ const CACHE_SIZE_LIMIT = 500;
 const SAFE_DOMAINS = [
   'github.com', 'google.com', 'microsoft.com', 'apple.com', 'amazon.com',
   'linkedin.com', 'netflix.com', 'youtube.com', 'wikipedia.org', 'paypal.com',
-  'yahoo.com', 'facebook.com', 'twitter.com', 'x.com', 'reddit.com', 'instagram.com'
+  'yahoo.com', 'facebook.com', 'twitter.com', 'x.com', 'reddit.com', 'instagram.com',
+  'openai.com', 'chatgpt.com', 'anthropic.com', 'aws.amazon.com', 'azure.com',
+  'localhost', '127.0.0.1'
 ];
 
 function predictProbability(features, urlForCache = null) {
@@ -99,7 +101,31 @@ function predictProbability(features, urlForCache = null) {
     sum += evalTree(t, features);
   }
   
-  const prob = sum / trees.length; // average probability
+  let prob = sum / trees.length; // average probability
+  
+  const HIGH_VALUE_BRANDS = ['microsoft', 'apple', 'paypal', 'google', 'facebook', 'amazon', 'netflix'];
+  if (urlForCache) {
+      try {
+          const host = new URL(urlForCache).hostname.toLowerCase();
+          const hostParts = host.split('.');
+          let rootDomain = hostParts.length > 1 ? hostParts.slice(-2).join('.') : host;
+          if (hostParts.length > 2 && hostParts[hostParts.length - 2].length <= 3) {
+              rootDomain = hostParts.slice(-3).join('.');
+          }
+          
+          let brandImpersonated = false;
+          HIGH_VALUE_BRANDS.forEach(brand => {
+              if (host.includes(brand) && !rootDomain.includes(brand)) {
+                  brandImpersonated = true;
+              }
+          });
+          
+          if (brandImpersonated) {
+              prob = Math.min(1.0, prob + 0.5); 
+              features['brand_impersonation'] = 1;
+          }
+      } catch(e) {}
+  }
 
   // Update Cache
   if (urlForCache) {

@@ -11,6 +11,27 @@ const WARN_THRESHOLD = 0.85;  // Warning banner + Safe Mode
 
 let modelLoaded = false;
 
+// One-time allow set — backed by chrome.storage.session so it survives service worker restarts
+// (chrome.storage.session is cleared when the browser is closed, but persists across SW suspensions)
+async function isOneTimeAllowed(domain) {
+  const data = await chrome.storage.session.get('oneTimeAllowSet');
+  const set = data.oneTimeAllowSet || [];
+  return set.includes(domain);
+}
+
+async function addOneTimeAllow(domain) {
+  const data = await chrome.storage.session.get('oneTimeAllowSet');
+  const set = data.oneTimeAllowSet || [];
+  if (!set.includes(domain)) set.push(domain);
+  await chrome.storage.session.set({ oneTimeAllowSet: set });
+}
+
+async function consumeOneTimeAllow(domain) {
+  const data = await chrome.storage.session.get('oneTimeAllowSet');
+  const set = (data.oneTimeAllowSet || []).filter(d => d !== domain);
+  await chrome.storage.session.set({ oneTimeAllowSet: set });
+}
+
 // Initialize Stats
 chrome.runtime.onInstalled.addListener(() => {
   chrome.storage.local.set({
@@ -98,18 +119,77 @@ function applySafeModeProtections(url, risk) {
   });
 }
 
+// Local cache for RDAP lookups
+const domainAgeCache = new Map();
+
+async function checkDomainAge(hostname, tabId, url, currentRisk) {
+    if (/^\d+\.\d+\.\d+\.\d+$/.test(hostname)) return;
+    const parts = hostname.split('.');
+    if (parts.length < 2) return;
+    
+    // For TLDs like .co.uk, this is rough, but mostly works for top-level detection
+    let rootDomain = parts.slice(-2).join('.');
+    if (parts.length > 2 && (parts[parts.length - 2].length <= 3)) {
+        rootDomain = parts.slice(-3).join('.');
+    }
+    
+    if (currentRisk === 0) return; // Assume SAFE_DOMAIN
+    
+    if (domainAgeCache.has(rootDomain)) {
+        applyAgePenalty(domainAgeCache.get(rootDomain), tabId, url, currentRisk);
+        return;
+    }
+
+    try {
+        const resp = await fetch(`https://rdap.org/domain/${rootDomain}`);
+        if (resp.ok) {
+            const data = await resp.json();
+            const regEvent = data.events?.find(e => e.eventAction === 'registration');
+            if (regEvent && regEvent.eventDate) {
+                const regDate = new Date(regEvent.eventDate);
+                const ageDays = (Date.now() - regDate.getTime()) / (1000 * 60 * 60 * 24);
+                const isSuspiciousAge = ageDays < 30; // 30 day threshold
+                domainAgeCache.set(rootDomain, isSuspiciousAge);
+                applyAgePenalty(isSuspiciousAge, tabId, url, currentRisk);
+                return;
+            }
+        }
+        domainAgeCache.set(rootDomain, false); // don't penalize on error/missing data
+    } catch(e) {
+        domainAgeCache.set(rootDomain, false);
+    }
+}
+
+function applyAgePenalty(isSuspiciousAge, tabId, url, currentRisk) {
+    if (!isSuspiciousAge) return;
+    const newRisk = Math.min(1.0, currentRisk + 0.4); 
+    if (newRisk >= BLOCK_THRESHOLD) {
+        chrome.tabs.update(tabId, {
+            url: chrome.runtime.getURL('blocked.html') + `?url=${encodeURIComponent(url)}&risk=${newRisk}&reason=new_domain_age`
+        });
+    } else if (newRisk >= WARN_THRESHOLD) {
+        applySafeModeProtections(url, newRisk);
+    }
+}
+
 chrome.webNavigation.onCommitted.addListener(async (details) => {
   if (details.frameId !== 0) return;
   const url = details.url;
   if (isRestrictedUrl(url) || !modelLoaded) return;
 
-  chrome.storage.local.get(['allowlist'], async (res) => {
-    const list = res.allowlist || [];
-    try {
-      const parsedUrl = new URL(url);
-      if (list.includes(parsedUrl.hostname)) {
-          return; // User explicitly trusted this site
-      }
+  // Check one-time allow token FIRST — now backed by session storage to survive SW restarts
+  try {
+    const parsedUrl = new URL(url);
+    if (await isOneTimeAllowed(parsedUrl.hostname)) {
+      await consumeOneTimeAllow(parsedUrl.hostname); // Consume — blocked again on next visit
+      return;
+    }
+  } catch (e) {
+    return;
+  }
+
+  try {
+    const parsedUrl = new URL(url);
     if (parsedUrl.hostname.endsWith('.trycloudflare.com') || parsedUrl.hostname === 'trycloudflare.com' || parsedUrl.hostname.endsWith('.trycloudflare.net') || parsedUrl.hostname === 'trycloudflare.net') {
       logSecurityEvent(url, 1.0, { is_tunnel: 1, is_homograph: 0, suspicious_tld: 0, subdomain_count: 0 });
       chrome.tabs.update(details.tabId, {
@@ -127,11 +207,12 @@ chrome.webNavigation.onCommitted.addListener(async (details) => {
       chrome.tabs.update(details.tabId, {
         url: chrome.runtime.getURL('blocked.html') + `?url=${encodeURIComponent(url)}&risk=${risk}`
       });
+    } else {
+      checkDomainAge(parsedUrl.hostname, details.tabId, url, risk);
     }
   } catch (e) {
     console.error('Scan error:', e);
   }
-  }); // End storage get
 });
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -148,28 +229,33 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
   
-  if (msg.action === 'allowSite') {
-      try {
-          const domain = new URL(msg.url).hostname;
-          chrome.storage.local.get(['allowlist', 'stats'], (res) => {
-              const list = res.allowlist || [];
-              const stats = res.stats || { scanned: 0, blocked: 0, totalRisk: 0, falsePositives: 0, falseNegatives: 0 };
-              
-              if (!list.includes(domain)) {
-                  list.push(domain);
-                  stats.falsePositives = (stats.falsePositives || 0) + 1; // Mark as false positive
-                  // Wait for storage write to complete BEFORE sending response
-                  chrome.storage.local.set({ allowlist: list, stats: stats }, () => {
-                      sendResponse({ success: true });
+  if (msg.action === 'allowSiteOnce') {
+      (async () => {
+          try {
+              const domain = new URL(msg.url).hostname;
+              const tabId = sender.tab ? sender.tab.id : null;
+
+              // Grant one-time pass in session storage — survives SW suspension
+              await addOneTimeAllow(domain);
+
+              // Track as false positive in stats only (no persistent allowlist)
+              chrome.storage.local.get(['stats'], (res) => {
+                  const stats = res.stats || { scanned: 0, blocked: 0, totalRisk: 0, falsePositives: 0, falseNegatives: 0 };
+                  stats.falsePositives = (stats.falsePositives || 0) + 1;
+                  chrome.storage.local.set({ stats }, () => {
+                      if (tabId) {
+                          chrome.tabs.update(tabId, { url: msg.url }, () => {
+                              sendResponse({ success: true });
+                          });
+                      } else {
+                          sendResponse({ success: true });
+                      }
                   });
-              } else {
-                  // Already in allowlist, respond immediately
-                  sendResponse({ success: true });
-              }
-          });
-      } catch(e) {
-          sendResponse({ success: false });
-      }
+              });
+          } catch(e) {
+              sendResponse({ success: false });
+          }
+      })();
       return true;
   }
   
@@ -189,13 +275,20 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.action === 'domAnalysisReport') {
     const { riskScore, reasons, url } = msg;
     if (riskScore >= 0.8) {
-      chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
-          if (tabs[0] && tabs[0].url === url) {
-              chrome.tabs.update(tabs[0].id, {
-                url: chrome.runtime.getURL('blocked.html') + `?url=${encodeURIComponent(url)}&risk=${riskScore}&reason=dom_heuristics`
-              });
-          }
-      });
+      // Do NOT re-block if the user already explicitly allowed this domain once
+      (async () => {
+        try {
+          const domain = new URL(url).hostname;
+          if (await isOneTimeAllowed(domain)) return; // User just allowed it — skip DOM re-block
+        } catch (e) {}
+        chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+            if (tabs[0] && tabs[0].url === url) {
+                chrome.tabs.update(tabs[0].id, {
+                  url: chrome.runtime.getURL('blocked.html') + `?url=${encodeURIComponent(url)}&risk=${riskScore}&reason=dom_heuristics`
+                });
+            }
+        });
+      })();
     } else if (riskScore > 0) {
       logSecurityEvent(url, riskScore, { is_tunnel: 0, is_homograph: 0, suspicious_tld: 0, subdomain_count: 0 });
     }

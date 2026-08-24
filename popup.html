@@ -104,11 +104,16 @@
       <div class="speedometer-fill" id="riskNeedle"></div>
     </div>
     <span class="risk-value" id="riskValue">0%</span>
-    <span class="risk-label">Threat Probability</span>
+    <span class="risk-label">Risk Confidence</span>
   </div>
 
   <div class="features-list" id="featureFlags">
-    <!-- Dynamic feature flags like "Tunneling Detected" -->
+    <!-- Dynamic feature flags -->
+  </div>
+  
+  <div id="safeInfo" style="display: none; margin-top: 15px; padding: 10px; background: rgba(16, 185, 129, 0.1); border-radius: 8px; border: 1px solid rgba(16, 185, 129, 0.2); font-size: 0.8rem;">
+    <strong style="color: var(--success); display: block; margin-bottom: 5px;">Why was this allowed?</strong>
+    <p style="margin: 0; color: var(--text-dim);">PhishGuard didn't find significant indicators of phishing. This does not guarantee the website is 100% safe.</p>
   </div>
 
   <div class="footer-actions">
