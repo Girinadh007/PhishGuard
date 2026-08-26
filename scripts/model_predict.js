@@ -103,6 +103,10 @@ function predictProbability(features, urlForCache = null) {
   
   let prob = sum / trees.length; // average probability
   
+  if (features['is_tunnel'] === 1) {
+      prob = Math.min(1.0, prob + 0.85); // Tunnels are extremely high risk
+  }
+  
   const HIGH_VALUE_BRANDS = ['microsoft', 'apple', 'paypal', 'google', 'facebook', 'amazon', 'netflix'];
   if (urlForCache) {
       try {

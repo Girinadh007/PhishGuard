@@ -6,8 +6,8 @@ import {
 } from './scripts/model_predict.js';
 
 const MODEL_PATH = chrome.runtime.getURL('model/model.json');
-const BLOCK_THRESHOLD = 0.96; // Immediate block
-const WARN_THRESHOLD = 0.85;  // Warning banner + Safe Mode
+const BLOCK_THRESHOLD = 0.80; // Immediate block
+const WARN_THRESHOLD = 0.70;  // Warning banner + Safe Mode
 
 let modelLoaded = false;
 let allowlist = new Set();
@@ -303,3 +303,36 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
   }
 });
+
+const TUNNEL_HEADERS = [
+  'ngrok-skip-browser-warning',
+  'x-ngrok-skip-browser-warning',
+  'x-serveo-',
+  'x-localtunnel-'
+];
+
+chrome.webRequest.onHeadersReceived.addListener(
+  (details) => {
+    if (details.type !== 'main_frame') return;
+    
+    let isTunnel = false;
+    if (details.responseHeaders) {
+      for (let header of details.responseHeaders) {
+        const headerName = header.name.toLowerCase();
+        if (TUNNEL_HEADERS.some(t => headerName.includes(t))) {
+          isTunnel = true;
+          break;
+        }
+      }
+    }
+    
+    if (isTunnel) {
+      logSecurityEvent(details.url, 1.0, { is_tunnel: 1, is_homograph: 0, suspicious_tld: 0, subdomain_count: 0 });
+      chrome.tabs.update(details.tabId, {
+        url: chrome.runtime.getURL('blocked.html') + `?url=${encodeURIComponent(details.url)}&risk=1.00&reason=tunnel_header_detected`
+      });
+    }
+  },
+  { urls: ['<all_urls>'] },
+  ['responseHeaders']
+);

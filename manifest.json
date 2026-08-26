@@ -8,7 +8,8 @@
     "tabs",
     "scripting",
     "webNavigation",
-    "notifications"
+    "notifications",
+    "webRequest"
   ],
   "host_permissions": [
     "<all_urls>"
