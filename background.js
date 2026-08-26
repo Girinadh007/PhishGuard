@@ -10,6 +10,7 @@ const BLOCK_THRESHOLD = 0.96; // Immediate block
 const WARN_THRESHOLD = 0.85;  // Warning banner + Safe Mode
 
 let modelLoaded = false;
+let allowlist = new Set();
 
 // One-time allow set — backed by chrome.storage.session so it survives service worker restarts
 // (chrome.storage.session is cleared when the browser is closed, but persists across SW suspensions)
@@ -44,6 +45,12 @@ chrome.runtime.onInstalled.addListener(() => {
 
 (async () => {
   try {
+    const allowlistUrl = chrome.runtime.getURL('model/allowlist.json');
+    const response = await fetch(allowlistUrl);
+    const allowlistArray = await response.json();
+    allowlist = new Set(allowlistArray);
+    console.log(`Loaded ${allowlist.size} domains into allowlist`);
+
     await loadModel(MODEL_PATH);
     modelLoaded = true;
     console.log('PhishGuard AI model loaded');
@@ -190,12 +197,14 @@ chrome.webNavigation.onCommitted.addListener(async (details) => {
 
   try {
     const parsedUrl = new URL(url);
-    if (parsedUrl.hostname.endsWith('.trycloudflare.com') || parsedUrl.hostname === 'trycloudflare.com' || parsedUrl.hostname.endsWith('.trycloudflare.net') || parsedUrl.hostname === 'trycloudflare.net') {
-      logSecurityEvent(url, 1.0, { is_tunnel: 1, is_homograph: 0, suspicious_tld: 0, subdomain_count: 0 });
-      chrome.tabs.update(details.tabId, {
-        url: chrome.runtime.getURL('blocked.html') + `?url=${encodeURIComponent(url)}&risk=1.00&reason=cloudflare_tunnel`
-      });
-      return;
+    
+    // Check if domain is in the global allowlist (Top 100k)
+    let domainToCheck = parsedUrl.hostname;
+    if (domainToCheck.startsWith('www.')) {
+        domainToCheck = domainToCheck.substring(4);
+    }
+    if (allowlist.has(domainToCheck)) {
+        return; // Immediately approve (0ms interception time)
     }
 
     const features = extractFeaturesFromUrl(url);
