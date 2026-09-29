@@ -1,11 +1,114 @@
 // model_predict.js
-// Loads model.json (packaged with extension or fetched) and exposes predict(urlFeatures)
+// High-Performance Flattened Typed-Array ML Engine & Feature Extractor
 
 let MODEL = null;
+let FLAT_FOREST = null;
 
-async function loadModel(modelUrl) {
-  const resp = await fetch(modelUrl);
-  MODEL = await resp.json();
+// Compile nested JSON tree into contiguous typed arrays (zero-allocation evaluation)
+function compileModelToFlatForest(modelJson) {
+  const featureNames = modelJson.features || [];
+  const featureMap = new Map();
+  featureNames.forEach((name, i) => featureMap.set(name, i));
+
+  // Count total nodes across all trees to pre-allocate exact contiguous buffers
+  let totalNodes = 0;
+  function countNodes(node) {
+    totalNodes++;
+    if (!node.leaf) {
+      countNodes(node.left);
+      countNodes(node.right);
+    }
+  }
+
+  const trees = modelJson.trees || [];
+  for (const tree of trees) {
+    countNodes(tree);
+  }
+
+  const treeCount = trees.length;
+  const treeOffsets = new Int32Array(treeCount);
+  const featureIndices = new Int16Array(totalNodes);
+  const thresholds = new Float32Array(totalNodes);
+  const leftChildren = new Int32Array(totalNodes);
+  const rightChildren = new Int32Array(totalNodes);
+  const probabilities = new Float32Array(totalNodes);
+
+  let cursor = 0;
+
+  function flattenNode(node) {
+    const idx = cursor++;
+    if (node.leaf) {
+      featureIndices[idx] = -1;
+      thresholds[idx] = 0;
+      leftChildren[idx] = -1;
+      rightChildren[idx] = -1;
+      probabilities[idx] = node.prob;
+    } else {
+      const fIdx = featureMap.has(node.feature) ? featureMap.get(node.feature) : -1;
+      featureIndices[idx] = fIdx;
+      thresholds[idx] = node.threshold;
+      probabilities[idx] = 0;
+
+      const leftIdx = flattenNode(node.left);
+      const rightIdx = flattenNode(node.right);
+      leftChildren[idx] = leftIdx;
+      rightChildren[idx] = rightIdx;
+    }
+    return idx;
+  }
+
+  for (let i = 0; i < treeCount; i++) {
+    treeOffsets[i] = flattenNode(trees[i]);
+  }
+
+  return {
+    featureNames,
+    featureMap,
+    treeCount,
+    totalNodes,
+    treeOffsets,
+    featureIndices,
+    thresholds,
+    leftChildren,
+    rightChildren,
+    probabilities,
+    version: modelJson.version || '1.0.0',
+    loadedAt: Date.now()
+  };
+}
+
+async function loadModel(modelSource) {
+  try {
+    if (typeof modelSource === 'string') {
+      const resp = await fetch(modelSource);
+      MODEL = await resp.json();
+    } else if (typeof modelSource === 'object' && modelSource !== null) {
+      MODEL = modelSource;
+    } else {
+      throw new Error('Invalid modelSource format');
+    }
+
+    FLAT_FOREST = compileModelToFlatForest(MODEL);
+    return FLAT_FOREST;
+  } catch (err) {
+    console.error('[PhishGuard] Failed to load/compile model:', err);
+    throw err;
+  }
+}
+
+function getModelInfo() {
+  if (!FLAT_FOREST) {
+    return { loaded: false };
+  }
+  return {
+    loaded: true,
+    engine: 'Flattened Typed-Array Engine (JIT-Optimized)',
+    version: FLAT_FOREST.version,
+    treeCount: FLAT_FOREST.treeCount,
+    totalNodes: FLAT_FOREST.totalNodes,
+    featureCount: FLAT_FOREST.featureNames.length,
+    loadedAt: FLAT_FOREST.loadedAt
+  };
 }
 
 // Expect features object keys same as Python feature_names order
@@ -30,10 +133,10 @@ function extractFeaturesFromUrl(url) {
   features['num_digits'] = (url.match(/\d/g) || []).length;
   features['entropy'] = shannonEntropy(full);
 
-  // New Features for Zero-Day & Tunneling
+  // Features for Zero-Day & Tunneling
   features['is_tunnel'] = /(ngrok(-free)?\.app|ngrok\.io|trycloudflare\.com|localtunnel\.me|serveo\.net|telebit\.io)/.test(host) ? 1 : 0;
   features['is_homograph'] = host.includes('xn--') ? 1 : 0;
-  features['subdomain_count'] = (host.split('.').length - 2);
+  features['subdomain_count'] = Math.max(0, host.split('.').length - 2);
 
   const suspiciousTlds = ['.xyz', '.top', '.link', '.pw', '.club', '.online', '.site', '.work', '.icu', '.gq', '.tk', '.ml'];
   features['suspicious_tld'] = suspiciousTlds.some(tld => host.endsWith(tld)) ? 1 : 0;
@@ -59,13 +162,6 @@ function shannonEntropy(s) {
   return ent;
 }
 
-function evalTree(node, features) {
-  if (node.leaf) return node.prob;
-  const f = features[node.feature];
-  if (f <= node.threshold) return evalTree(node.left, features);
-  return evalTree(node.right, features);
-}
-
 const predictionCache = new Map();
 const CACHE_SIZE_LIMIT = 500;
 
@@ -78,63 +174,100 @@ const SAFE_DOMAINS = [
 ];
 
 function predictProbability(features, urlForCache = null) {
-  if (!MODEL) throw new Error("Model not loaded");
+  if (!FLAT_FOREST && !MODEL) throw new Error("Model not loaded");
 
   if (urlForCache) {
     try {
-        const host = new URL(urlForCache).hostname;
-        const isSafe = SAFE_DOMAINS.some(safe => host === safe || host.endsWith('.' + safe));
-        if (isSafe) {
-            return 0.0; // Automatically trust major domains to prevent ML overfitting
-        }
+      const host = new URL(urlForCache).hostname;
+      const isSafe = SAFE_DOMAINS.some(safe => host === safe || host.endsWith('.' + safe));
+      if (isSafe) {
+        return 0.0;
+      }
     } catch(e) {}
   }
 
-  // Optional: Caching logic if url is provided and cache hits
+  // Cache lookup
   if (urlForCache && predictionCache.has(urlForCache)) {
     return predictionCache.get(urlForCache);
   }
 
-  const trees = MODEL.trees;
-  let sum = 0;
-  for (const t of trees) {
-    sum += evalTree(t, features);
+  let prob = 0.0;
+
+  // Ultra-fast iterative typed-array evaluation (no recursive call stack, no object allocation)
+  if (FLAT_FOREST) {
+    const featureNames = FLAT_FOREST.featureNames;
+    const numFeatures = featureNames.length;
+    const featureVector = new Float32Array(numFeatures);
+    for (let i = 0; i < numFeatures; i++) {
+      featureVector[i] = features[featureNames[i]] || 0;
+    }
+
+    const featureIndices = FLAT_FOREST.featureIndices;
+    const thresholds = FLAT_FOREST.thresholds;
+    const leftChildren = FLAT_FOREST.leftChildren;
+    const rightChildren = FLAT_FOREST.rightChildren;
+    const probabilities = FLAT_FOREST.probabilities;
+    const treeOffsets = FLAT_FOREST.treeOffsets;
+    const numTrees = FLAT_FOREST.treeCount;
+
+    let sum = 0.0;
+    for (let t = 0; t < numTrees; t++) {
+      let idx = treeOffsets[t];
+      while (true) {
+        const fIdx = featureIndices[idx];
+        if (fIdx === -1) {
+          sum += probabilities[idx];
+          break;
+        }
+        idx = (featureVector[fIdx] <= thresholds[idx]) ? leftChildren[idx] : rightChildren[idx];
+      }
+    }
+    prob = sum / numTrees;
+  } else {
+    // Fallback if flat forest unavailable
+    let sum = 0;
+    for (const t of MODEL.trees) {
+      let node = t;
+      while (!node.leaf) {
+        const val = features[node.feature] || 0;
+        node = (val <= node.threshold) ? node.left : node.right;
+      }
+      sum += node.prob;
+    }
+    prob = sum / MODEL.trees.length;
   }
-  
-  let prob = sum / trees.length; // average probability
-  
+
   if (features['is_tunnel'] === 1) {
-      prob = Math.min(1.0, prob + 0.85); // Tunnels are extremely high risk
+    prob = Math.min(1.0, prob + 0.85);
   }
-  
+
   const HIGH_VALUE_BRANDS = ['microsoft', 'apple', 'paypal', 'google', 'facebook', 'amazon', 'netflix'];
   if (urlForCache) {
-      try {
-          const host = new URL(urlForCache).hostname.toLowerCase();
-          const hostParts = host.split('.');
-          let rootDomain = hostParts.length > 1 ? hostParts.slice(-2).join('.') : host;
-          if (hostParts.length > 2 && hostParts[hostParts.length - 2].length <= 3) {
-              rootDomain = hostParts.slice(-3).join('.');
-          }
-          
-          let brandImpersonated = false;
-          HIGH_VALUE_BRANDS.forEach(brand => {
-              if (host.includes(brand) && !rootDomain.includes(brand)) {
-                  brandImpersonated = true;
-              }
-          });
-          
-          if (brandImpersonated) {
-              prob = Math.min(1.0, prob + 0.5); 
-              features['brand_impersonation'] = 1;
-          }
-      } catch(e) {}
+    try {
+      const host = new URL(urlForCache).hostname.toLowerCase();
+      const hostParts = host.split('.');
+      let rootDomain = hostParts.length > 1 ? hostParts.slice(-2).join('.') : host;
+      if (hostParts.length > 2 && hostParts[hostParts.length - 2].length <= 3) {
+        rootDomain = hostParts.slice(-3).join('.');
+      }
+
+      let brandImpersonated = false;
+      HIGH_VALUE_BRANDS.forEach(brand => {
+        if (host.includes(brand) && !rootDomain.includes(brand)) {
+          brandImpersonated = true;
+        }
+      });
+
+      if (brandImpersonated) {
+        prob = Math.min(1.0, prob + 0.5);
+        features['brand_impersonation'] = 1;
+      }
+    } catch(e) {}
   }
 
   // Update Cache
   if (urlForCache) {
     if (predictionCache.size > CACHE_SIZE_LIMIT) {
-      // LRU eviction - Map iterates in insertion order, so delete the first key
       predictionCache.delete(predictionCache.keys().next().value);
     }
     predictionCache.set(urlForCache, prob);
@@ -143,4 +276,4 @@ function predictProbability(features, urlForCache = null) {
   return prob;
 }
 
-export { loadModel, extractFeaturesFromUrl, predictProbability };
+export { loadModel, extractFeaturesFromUrl, predictProbability, getModelInfo };

@@ -9,6 +9,9 @@ let riskPercent = risk ? Math.round(parseFloat(risk) * 100) + '%' : 'Unknown';
 
 if (url) document.getElementById('urlDisplay').textContent = url;
 
+const flags = params.get('flags') ? params.get('flags').split(',') : [];
+const details = params.get('details');
+
 // Populate reason block based on detection type
 const reasonElement = document.querySelector('.reason');
 if (reasonElement) {
@@ -19,17 +22,46 @@ if (reasonElement) {
             <br><br><em>Security Tip:</em> Legitimate businesses almost never use temporary tunnel domains for login pages.
         `;
     } else if (reason === 'dom_heuristics') {
+        let detailsHtml = '';
+        if (details) {
+            const detailItems = details.split(' | ');
+            detailsHtml = '<ul style="text-align: left; margin: 12px auto; max-width: 500px; padding-left: 20px; font-size: 0.95rem; color: #fca5a5;">' +
+                detailItems.map(d => `<li style="margin-bottom: 6px;">⚠️ ${d}</li>`).join('') +
+                '</ul>';
+        }
+
         reasonElement.innerHTML = `
             <strong>Why was this blocked? (Risk: ${riskPercent})</strong><br><br>
-            We detected highly suspicious HTML structures on this page. Examples include hidden elements, external form submission targets, or password fields over an unencrypted connection.
-            <br><br><em>Security Tip:</em> Even if a page limits what you can see visually, PhishGuard inspects the actual HTML code for hidden manipulation tactics.
+            ${flags.includes('Brand-Impersonation') ? '<span style="color: #f87171; font-weight: 700;">🚨 Brand Impersonation Detected</span><br>' : ''}
+            PhishGuard inspected the underlying HTML and detected high-risk manipulation tactics.
+            ${detailsHtml}
+            <em>Security Tip:</em> Even if a page limits visual clues, PhishGuard inspects the HTML code for concealed credential collectors and identity spoofing.
+        `;
+    } else if (reason === 'tunnel_header_detected') {
+        reasonElement.innerHTML = `
+            <strong>Why was this blocked? (Risk: ${riskPercent})</strong><br><br>
+            A reverse tunnel service header was detected in the HTTP response. Reverse tunnels (such as ngrok or serveo) are commonly utilized to rapidly deploy transient phishing portals.
         `;
     } else {
         reasonElement.innerHTML = `
             <strong>Why was this blocked? (Risk: ${riskPercent})</strong><br><br>
-            The PhishGuard ML model detected anomalies common in phishing.
+            The PhishGuard AI model detected structural anomalies common in phishing links and deceptive login pages.
             Are you sure you recognize this exact domain spelling? Look for extra hyphens, numbers replacing letters (like '0' instead of 'o'), or unusual domain endings.
         `;
+    }
+}
+
+// Populate detailed evidence list if available
+const evidenceList = document.querySelector('#evidenceSection ul');
+if (evidenceList && (details || flags.length > 0)) {
+    let items = [];
+    if (details) {
+        items = details.split(' | ').map(d => `<li style="margin-bottom: 8px;">⚠️ ${d}</li>`);
+    } else if (flags.length > 0) {
+        items = flags.map(f => `<li style="margin-bottom: 8px;">⚠️ Detected anomaly: <strong>${f}</strong></li>`);
+    }
+    if (items.length > 0) {
+        evidenceList.innerHTML = items.join('');
     }
 }
 

@@ -122,14 +122,18 @@
         </div>
         
         <div class="glass-card" style="padding: 24px;">
-            <h2 style="margin-top: 0;">🧠 Your Security Awareness</h2>
-            <p style="color: var(--primary); font-weight: 600; font-size: 1.2rem;">Status: Growing</p>
-            <p style="color: var(--text-dim); font-size: 0.9rem;">You've learned about:</p>
-            <ul style="color: var(--text-dim); font-size: 0.85rem; list-style-type: '✓ ';">
-                <li>Suspicious website addresses</li>
-                <li>Look-alike domains</li>
-                <li>Temporary hosting risks</li>
-            </ul>
+            <h2 style="margin-top: 0;">⚡ AI Engine & OTA Updates</h2>
+            <p style="color: var(--primary); font-weight: 600; font-size: 1.1rem;" id="engineBadge">Flattened Typed-Array Engine</p>
+            <div style="font-size: 0.88rem; color: var(--text-dim); margin-bottom: 15px;">
+                <div>📦 <strong>Model Version:</strong> <span id="modelVersionDisplay" style="color: var(--text-main);">v1.0.0</span></div>
+                <div>🌲 <strong>Decision Trees:</strong> <span id="modelTreesDisplay" style="color: var(--text-main);">100 Trees</span> (<span id="modelNodesDisplay">Flattened</span>)</div>
+                <div>🛡️ <strong>Protected Allowlist:</strong> <span id="allowlistSizeDisplay" style="color: var(--text-main);">100,000+ Domains</span></div>
+                <div>⏱️ <strong>Last Verified:</strong> <span id="lastCheckDisplay" style="color: var(--text-main);">Just now</span></div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                <button id="checkUpdateBtn" class="premium-btn" style="font-size: 0.85rem; padding: 6px 14px;">Check for Updates</button>
+                <span id="updateStatusText" style="font-size: 0.8rem; color: var(--text-dim);"></span>
+            </div>
         </div>
     </div>
 
