@@ -1,0 +1,9 @@
+{
+  "version": "1.0.0",
+  "model_name": "PhishGuard-RF-100",
+  "trees": 100,
+  "features_count": 20,
+  "allowlist_updated": false,
+  "release_date": "2026-10-01",
+  "description": "Packaged Random Forest 100-Tree ML Engine and Top-100k Allowlist"
+}

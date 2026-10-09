@@ -1,5 +1,8 @@
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.action === 'showWarningBanner') {
+    if (window.location.protocol !== 'http:' && window.location.protocol !== 'https:') return;
+    if (window.location.href.includes('dashboard.html') || window.location.href.includes('blocked.html') || window.location.href.includes('popup.html')) return;
+
     const risk = msg.risk || 0;
     const threshold = 0.8;
 
@@ -68,6 +71,10 @@ let analysisDone = false;
 function performDOMAnalysis() {
   if (analysisDone) return;
 
+  // Only run on standard web pages
+  if (window.location.protocol !== 'http:' && window.location.protocol !== 'https:') return;
+  if (window.location.href.includes('dashboard.html') || window.location.href.includes('blocked.html') || window.location.href.includes('popup.html')) return;
+
   const currentHost = window.location.hostname.toLowerCase();
   
   // Skip local extension pages or about/blank
@@ -94,17 +101,19 @@ function performDOMAnalysis() {
   const ogTitle = (document.querySelector('meta[property="og:title"]')?.getAttribute('content') || '').toLowerCase();
   const ogSite = (document.querySelector('meta[property="og:site_name"]')?.getAttribute('content') || '').toLowerCase();
   
-  // Aggregate prominent textual context
+  // Aggregate prominent textual context, stripping out common SSO button phrases
   const h1Texts = Array.from(document.querySelectorAll('h1, h2')).map(h => (h.textContent || '').toLowerCase()).join(' ');
-  const combinedContext = `${pageTitle} ${ogTitle} ${ogSite} ${metaDesc} ${h1Texts}`;
+  let combinedContext = `${pageTitle} ${ogTitle} ${ogSite} ${metaDesc} ${h1Texts}`;
+  combinedContext = combinedContext.replace(/(sign in with|continue with|log in with|login with) [a-z0-9 ]+/g, '');
 
   for (const brand of BRAND_TARGETS) {
     const isDomainLegit = brand.domains.some(dom => currentHost === dom || currentHost.endsWith('.' + dom));
     if (isDomainLegit) continue;
 
-    // Check if brand keywords appear prominently
-    const matchesBrand = brand.keywords.some(kw => combinedContext.includes(kw));
-    if (matchesBrand) {
+    // Strict matching: Check if the primary page metadata claims to be the brand
+    const titleClaimsBrand = brand.keywords.some(kw => pageTitle.includes(kw) || ogTitle.includes(kw) || ogSite.includes(kw));
+
+    if (titleClaimsBrand) {
       if (hasPasswordInput) {
         domRiskScore += 0.75;
         flags.push('Brand-Impersonation');
@@ -120,6 +129,12 @@ function performDOMAnalysis() {
   }
 
   // 3. Form exfiltration & Cross-Origin Password Targets
+  const TRUSTED_SSO_PROVIDERS = [
+    'auth0.com', 'okta.com', 'cognito.amazonaws.com', 'firebaseapp.com',
+    'clerk.dev', 'clerk.com', 'supabase.co', 'supabase.com',
+    'microsoftonline.com', 'onelogin.com', 'pingidentity.com', 'amazoncognito.com'
+  ];
+
   const forms = document.querySelectorAll('form');
   forms.forEach(form => {
     const action = (form.getAttribute('action') || '').trim().toLowerCase();
@@ -135,17 +150,19 @@ function performDOMAnalysis() {
       } else if (action.startsWith('http')) {
         try {
           const actionUrl = new URL(action, window.location.href);
-          if (actionUrl.hostname && actionUrl.hostname !== currentHost && !actionUrl.hostname.endsWith('.' + currentHost)) {
+          const isTrustedSSO = TRUSTED_SSO_PROVIDERS.some(sso => actionUrl.hostname === sso || actionUrl.hostname.endsWith('.' + sso));
+          
+          if (actionUrl.hostname && actionUrl.hostname !== currentHost && !actionUrl.hostname.endsWith('.' + currentHost) && !isTrustedSSO) {
             domRiskScore += 0.6;
             flags.push('Cross-Domain-Form');
-            reasons.push(`Password form submits credentials to an external host: ${actionUrl.hostname}`);
+            reasons.push(`Password form submits credentials to an external, untrusted host: ${actionUrl.hostname}`);
           }
         } catch (e) {}
-      } else if (action === '#' || action === '' || action.startsWith('javascript:')) {
-        // Obfuscated form action or dynamic scraping
-        domRiskScore += 0.35;
-        flags.push('Obfuscated-Form-Action');
-        reasons.push('Password form has a blank or JavaScript-only action attribute, commonly used in credential harvesting scripts.');
+      } else if (action.startsWith('javascript:')) {
+        // Only penalize javascript: actions, allow blank/'#' for modern React/Vue/Angular SPAs
+        domRiskScore += 0.15;
+        flags.push('JS-Form-Action');
+        reasons.push('Password form uses a JavaScript pseudo-protocol action attribute.');
       }
     }
   });

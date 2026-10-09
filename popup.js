@@ -73,6 +73,12 @@ async function init() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (tab && tab.url) {
+      if (!tab.url.startsWith('http://') && !tab.url.startsWith('https://')) {
+        currentUrlEl.textContent = tab.url.includes('dashboard.html') ? "PhishGuard Dashboard" : "Browser Internal Page";
+        updateUI({ fused: 0, features: {} });
+        return;
+      }
+
       currentUrlEl.textContent = new URL(tab.url).hostname;
 
       chrome.runtime.sendMessage({ action: 'getRiskForUrl', url: tab.url }, (resp) => {

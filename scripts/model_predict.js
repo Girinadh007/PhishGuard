@@ -170,6 +170,10 @@ const SAFE_DOMAINS = [
   'linkedin.com', 'netflix.com', 'youtube.com', 'wikipedia.org', 'paypal.com',
   'yahoo.com', 'facebook.com', 'twitter.com', 'x.com', 'reddit.com', 'instagram.com',
   'openai.com', 'chatgpt.com', 'anthropic.com', 'aws.amazon.com', 'azure.com',
+  'stackoverflow.com', 'medium.com', 'gitlab.com', 'bitbucket.org', 'notion.so',
+  'slack.com', 'discord.com', 'twitch.tv', 'spotify.com', 'dropbox.com',
+  'box.com', 'zoom.us', 'webex.com', 'salesforce.com', 'atlassian.com',
+  'okta.com', 'auth0.com', 'vercel.com', 'netlify.com', 'heroku.com',
   'localhost', '127.0.0.1'
 ];
 
@@ -178,6 +182,16 @@ function predictProbability(features, urlForCache = null) {
 
   if (urlForCache) {
     try {
+      if (
+        (!urlForCache.startsWith('http://') && !urlForCache.startsWith('https://')) ||
+        urlForCache.startsWith('chrome-extension://') ||
+        urlForCache.startsWith('moz-extension://') ||
+        urlForCache.includes('dashboard.html') ||
+        urlForCache.includes('blocked.html') ||
+        urlForCache.includes('popup.html')
+      ) {
+        return 0.0;
+      }
       const host = new URL(urlForCache).hostname;
       const isSafe = SAFE_DOMAINS.some(safe => host === safe || host.endsWith('.' + safe));
       if (isSafe) {

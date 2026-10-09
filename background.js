@@ -62,15 +62,39 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 
 // Over-The-Air (OTA) Model & Allowlist Updater
 async function checkForOTAUpdates(manual = false) {
+  let localVersion = '1.0.0';
   try {
     const config = await chrome.storage.local.get(['ota_endpoint', 'model_version']);
+    localVersion = config.model_version || currentModelVersion || '1.0.0';
     const endpoint = config.ota_endpoint || 'https://raw.githubusercontent.com/Girinadh007/PhishGuard/main/model';
     
-    const versionResp = await fetch(`${endpoint}/version.json?_=${Date.now()}`, { cache: 'no-cache' });
+    let versionResp;
+    try {
+      versionResp = await fetch(`${endpoint}/version.json?_=${Date.now()}`, { cache: 'no-cache' });
+    } catch (netErr) {
+      await chrome.storage.local.set({ last_ota_check: Date.now() });
+      return {
+        success: true,
+        updated: false,
+        version: localVersion,
+        message: `Offline mode: packaged model rules v${localVersion} active.`
+      };
+    }
+
+    if (versionResp.status === 404) {
+      // Remote repository has not published a higher OTA release yet
+      await chrome.storage.local.set({ last_ota_check: Date.now() });
+      return {
+        success: true,
+        updated: false,
+        version: localVersion,
+        message: `Up to date: running model v${localVersion} (remote channel is on baseline).`
+      };
+    }
+
     if (!versionResp.ok) throw new Error(`Remote repository returned HTTP ${versionResp.status}`);
     const remoteMeta = await versionResp.json();
     
-    const localVersion = config.model_version || currentModelVersion || '1.0.0';
     if (remoteMeta.version && remoteMeta.version > localVersion) {
       // Download updated model
       const modelResp = await fetch(`${endpoint}/model.json?_=${Date.now()}`, { cache: 'no-cache' });
@@ -123,7 +147,7 @@ async function checkForOTAUpdates(manual = false) {
     return {
       success: false,
       error: err.message,
-      message: `Update check failed: ${err.message}`
+      message: `Update check failed: ${err.message}. Packaged baseline (v${localVersion}) remains active.`
     };
   }
 }
@@ -169,17 +193,51 @@ async function checkForOTAUpdates(manual = false) {
 })();
 
 function isRestrictedUrl(url) {
-  return url.startsWith('chrome://') || url.startsWith('about:') || url.startsWith('edge://') || url.startsWith('file://') || url.includes('blocked.html');
+  if (!url || typeof url !== 'string') return true;
+  // Only evaluate web protocols (http / https)
+  if (!url.startsWith('http://') && !url.startsWith('https://')) return true;
+
+  // Extension internal resources & pages
+  try {
+    const extBase = chrome.runtime.getURL('');
+    if (url.startsWith(extBase)) return true;
+  } catch (e) {}
+
+  if (
+    url.startsWith('chrome-extension://') ||
+    url.startsWith('moz-extension://') ||
+    url.startsWith('chrome://') ||
+    url.startsWith('about:') ||
+    url.startsWith('edge://') ||
+    url.startsWith('file://') ||
+    url.startsWith('devtools://') ||
+    url.startsWith('view-source:') ||
+    url.includes('dashboard.html') ||
+    url.includes('blocked.html') ||
+    url.includes('popup.html')
+  ) {
+    return true;
+  }
+
+  return false;
 }
 
 // Security Logger & Stats Tracker
 async function logSecurityEvent(url, risk, features, extraFlags = []) {
-  const domain = new URL(url).hostname;
+  if (isRestrictedUrl(url)) return;
+  let domain = '';
+  try {
+    domain = new URL(url).hostname;
+  } catch (e) {
+    return;
+  }
+  if (!domain || domain === 'localhost' || domain === '127.0.0.1') return;
+
   const flags = [...extraFlags];
-  if (features.is_tunnel) flags.push("Tunnel");
-  if (features.is_homograph) flags.push("Homograph");
-  if (features.suspicious_tld) flags.push("Risk-TLD");
-  if (features.subdomain_count > 2) flags.push("Subdomains");
+  if (features && features.is_tunnel) flags.push("Tunnel");
+  if (features && features.is_homograph) flags.push("Homograph");
+  if (features && features.suspicious_tld) flags.push("Risk-TLD");
+  if (features && features.subdomain_count > 2) flags.push("Subdomains");
 
   chrome.storage.local.get(['stats', 'scanLogs', 'pending_training_data', 'safeMode'], (res) => {
     let stats = res.stats || { scanned: 0, blocked: 0, totalRisk: 0, falsePositives: 0, falseNegatives: 0 };
@@ -215,6 +273,7 @@ async function logSecurityEvent(url, risk, features, extraFlags = []) {
 }
 
 function applySafeModeProtections(url, risk) {
+  if (isRestrictedUrl(url)) return;
   chrome.tabs.query({ url: url }, (tabs) => {
     tabs.forEach(tab => {
       chrome.scripting.executeScript({
@@ -337,6 +396,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.action === 'getRiskForUrl') {
     (async () => {
       try {
+        if (!msg.url || isRestrictedUrl(msg.url)) {
+          sendResponse({ fused: 0, features: {}, isRestricted: true });
+          return;
+        }
         const features = extractFeaturesFromUrl(msg.url);
         const p = await predictProbability(features, msg.url);
         sendResponse({ fused: p, features: features });
@@ -415,6 +478,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
   if (msg.action === 'domAnalysisReport') {
     const { riskScore, reasons, flags, url } = msg;
+    if (!url || isRestrictedUrl(url)) return;
     const extraFlags = flags || [];
     const details = reasons && reasons.length ? reasons.join(' | ') : '';
 
@@ -461,6 +525,7 @@ const TUNNEL_HEADERS = [
 chrome.webRequest.onHeadersReceived.addListener(
   (details) => {
     if (details.type !== 'main_frame') return;
+    if (isRestrictedUrl(details.url)) return;
     
     let isTunnel = false;
     if (details.responseHeaders) {

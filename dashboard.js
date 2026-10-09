@@ -7,7 +7,21 @@ const logTable = document.getElementById('logTable');
 function init() {
     chrome.storage.local.get(['stats', 'scanLogs'], (res) => {
         const stats = res.stats || { scanned: 0, blocked: 0 };
-        const logs = res.scanLogs || [];
+        const rawLogs = res.scanLogs || [];
+
+        // Filter out internal extension pages or extension IDs from display
+        const logs = rawLogs.filter(log => {
+            if (!log || !log.domain) return false;
+            const d = log.domain.toLowerCase();
+            if (d.includes('dashboard') || d.includes('chrome-extension') || d.includes('blocked.html') || d.includes('popup.html')) return false;
+            if (/^[a-z]{32}$/.test(d)) return false; // Chrome extension ID
+            return true;
+        });
+
+        // Clean up stale internal entries from storage if any were saved previously
+        if (logs.length !== rawLogs.length) {
+            chrome.storage.local.set({ scanLogs: logs });
+        }
 
         totalScannedEl.textContent = stats.scanned.toLocaleString();
         totalBlockedEl.textContent = stats.blocked.toLocaleString();
@@ -26,7 +40,7 @@ function init() {
 
         // Populate Table
         logTable.innerHTML = '';
-        logs.reverse().slice(0, 50).forEach(log => {
+        logs.slice().reverse().slice(0, 50).forEach(log => {
             const tr = document.createElement('tr');
             const date = new Date(log.ts).toLocaleString();
             let riskLevel = "Safe";

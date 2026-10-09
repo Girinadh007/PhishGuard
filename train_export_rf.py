@@ -57,7 +57,10 @@ def extract_features_from_url(url):
 df = pd.read_csv('phishing_dataset.csv')  
 
 # Standardize labels (phishing → 1, legitimate → 0)
-df['label'] = df['label'].astype(str).str.lower().map({'phishing': 1, 'legitimate': 0, '1': 1, '0': 0})
+df['label'] = df['label'].astype(str).str.lower().str.strip()
+df['label'] = df['label'].map({'phishing': 1, 'legitimate': 0, '1': 1, '0': 0})
+df = df.dropna(subset=['label'])
+df = df[~df['url'].astype(str).str.startswith('#')]
 
 X = [extract_features_from_url(u) for u in df['url'].astype(str)]
 X = pd.DataFrame(X)
@@ -71,13 +74,37 @@ rf = RandomForestClassifier(n_estimators=100, max_depth=14, random_state=42, n_j
 rf.fit(X_train, y_train)
 
 # --- Evaluate ---
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
 y_pred = rf.predict(X_test)
 y_proba = rf.predict_proba(X_test)[:,1]
-print(classification_report(y_test, y_pred))
-print("ROC AUC:", roc_auc_score(y_test, y_proba))
 
-scores = cross_val_score(rf, X, y, cv=5, scoring='f1')
-print("5-fold F1:", scores.mean())
+acc = accuracy_score(y_test, y_pred)
+prec = precision_score(y_test, y_pred)
+rec = recall_score(y_test, y_pred)
+f1 = f1_score(y_test, y_pred)
+roc = roc_auc_score(y_test, y_proba)
+cm = confusion_matrix(y_test, y_pred)
+tn, fp, fn, tp = cm.ravel()
+spec = tn / (tn + fp)
+
+print("\n========================================================")
+print("   📊 PHISHGUARD RESEARCH PAPER EVALUATION RESULTS     ")
+print("========================================================")
+print(f"Test Set Size:          {len(y_test):,} URLs (15% split)")
+print("--- CONFUSION MATRIX ---")
+print(f"True Positives (TP):    {tp:>8,}  (Phishing correctly detected)")
+print(f"True Negatives (TN):    {tn:>8,}  (Legitimate correctly identified)")
+print(f"False Positives (FP):   {fp:>8,}  (Legitimate incorrectly flagged)")
+print(f"False Negatives (FN):   {fn:>8,}  (Phishing missed)")
+print("\n--- PERFORMANCE METRICS (FOR RESULTS SECTION) ---")
+print(f"Accuracy:               {acc * 100:.2f}%")
+print(f"Precision:              {prec * 100:.2f}%")
+print(f"Recall (Sensitivity):   {rec * 100:.2f}%")
+print(f"Specificity:            {spec * 100:.2f}%")
+print(f"F1-Score:               {f1 * 100:.2f}%")
+print(f"ROC-AUC Score:          {roc * 100:.2f}%")
+print("========================================================\n")
+print(classification_report(y_test, y_pred, target_names=['Legitimate (0)', 'Phishing (1)']))
 
 # --- Save model for backup ---
 joblib.dump(rf, 'rf_backup.joblib')

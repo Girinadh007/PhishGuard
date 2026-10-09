@@ -66,9 +66,29 @@ if (evidenceList && (details || flags.length > 0)) {
 }
 
 // Go Back button
-document.getElementById('goBackBtn').addEventListener('click', () => {
-    history.back();
-});
+const goBackBtn = document.getElementById('goBackBtn');
+if (goBackBtn) {
+    goBackBtn.addEventListener('click', () => {
+        history.back();
+    });
+}
+
+// Learn Why toggle button
+const learnWhyBtn = document.getElementById('learnWhyBtn');
+if (learnWhyBtn) {
+    learnWhyBtn.addEventListener('click', () => {
+        const section = document.getElementById('evidenceSection');
+        if (section) {
+            if (section.style.display === 'none' || !section.style.display) {
+                section.style.display = 'block';
+                learnWhyBtn.textContent = 'Hide Details';
+            } else {
+                section.style.display = 'none';
+                learnWhyBtn.textContent = 'Learn Why';
+            }
+        }
+    });
+}
 
 // Allow Site button — ONE-TIME ONLY
 document.getElementById('allowSiteBtn').addEventListener('click', () => {

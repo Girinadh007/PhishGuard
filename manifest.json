@@ -42,6 +42,8 @@
     {
       "resources": [
         "model/model.json",
+        "model/allowlist.json",
+        "model/version.json",
         "icon.svg",
         "blocked.html"
       ],
