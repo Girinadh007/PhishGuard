@@ -223,7 +223,7 @@ function isRestrictedUrl(url) {
 }
 
 // Security Logger & Stats Tracker
-async function logSecurityEvent(url, risk, features, extraFlags = []) {
+async function logSecurityEvent(url, risk, features = {}, extraFlags = [], explicitAction = null, reason = '') {
   if (isRestrictedUrl(url)) return;
   let domain = '';
   try {
@@ -238,25 +238,86 @@ async function logSecurityEvent(url, risk, features, extraFlags = []) {
   if (features && features.is_homograph) flags.push("Homograph");
   if (features && features.suspicious_tld) flags.push("Risk-TLD");
   if (features && features.subdomain_count > 2) flags.push("Subdomains");
+  if (features && features.brand_impersonation) flags.push("Brand-Impersonation");
+  if (features && (features.tok_login || features.tok_signin || features.tok_auth)) flags.push("Login-Target");
+
+  // Determine action and category
+  const isBlocked = explicitAction === 'blocked' || risk >= BLOCK_THRESHOLD;
+  const isSafeMode = explicitAction === 'safe_mode' || (risk >= WARN_THRESHOLD && !isBlocked);
+  const action = explicitAction || (isBlocked ? 'blocked' : (isSafeMode ? 'safe_mode' : 'allowed'));
+
+  const flagsLower = flags.map(f => f.toLowerCase());
+  const isFakeLogin = flagsLower.some(f => 
+    f.includes('fake-login') || 
+    f.includes('brand-impersonation') || 
+    f.includes('exfiltration-endpoint') || 
+    f.includes('insecure-password') || 
+    f.includes('cross-domain-form')
+  ) || ((flagsLower.includes('login-target') || /login|signin|account|auth|password|banking/i.test(url)) && risk >= 0.70);
+
+  let category = 'safe';
+  if (isFakeLogin) {
+    category = 'fake_login';
+  } else if (isBlocked) {
+    category = 'threat';
+  } else if (isSafeMode || risk >= 0.30) {
+    category = 'suspicious';
+  }
 
   chrome.storage.local.get(['stats', 'scanLogs', 'pending_training_data', 'safeMode'], (res) => {
     let stats = res.stats || { scanned: 0, blocked: 0, totalRisk: 0, falsePositives: 0, falseNegatives: 0 };
     let logs = res.scanLogs || [];
     let trainingData = res.pending_training_data || [];
 
-    stats.scanned++;
-    stats.totalRisk += risk;
-    if (risk >= BLOCK_THRESHOLD) stats.blocked++;
+    const now = Date.now();
+    // Check if domain was recently logged within 15 seconds to merge (e.g. Navigation followed by DOM Analysis)
+    const recentIndex = logs.slice().reverse().findIndex(l => l.domain === domain && (now - (l.ts || 0)) < 15000);
 
-    logs.push({
-      ts: Date.now(),
-      domain: domain,
-      risk: risk,
-      flags: flags.join(', ')
-    });
+    if (recentIndex !== -1) {
+      const actualIdx = logs.length - 1 - recentIndex;
+      const existing = logs[actualIdx];
 
-    // Save for dataset improvement (Anonymous)
-    trainingData.push({ url, risk, ts: Date.now() });
+      const existingFlags = existing.flags ? existing.flags.split(',').map(s => s.trim()).filter(Boolean) : [];
+      const mergedFlags = Array.from(new Set([...existingFlags, ...flags]));
+
+      const mergedRisk = Math.max(existing.risk || 0, risk);
+      if (existing.action !== 'blocked' && isBlocked) {
+        stats.blocked++;
+      }
+
+      existing.risk = mergedRisk;
+      existing.flags = mergedFlags.join(', ');
+      existing.action = isBlocked ? 'blocked' : (existing.action === 'blocked' ? 'blocked' : action);
+      if (category === 'fake_login' || existing.category === 'fake_login') {
+        existing.category = 'fake_login';
+      } else if (isBlocked || existing.category === 'threat') {
+        existing.category = 'threat';
+      } else if (mergedRisk >= 0.30) {
+        existing.category = 'suspicious';
+      }
+      if (reason && !existing.reason) existing.reason = reason;
+      if (url && !existing.url) existing.url = url;
+      existing.ts = now;
+    } else {
+      stats.scanned++;
+      stats.totalRisk += risk;
+      if (isBlocked) stats.blocked++;
+
+      logs.push({
+        ts: now,
+        domain: domain,
+        url: url,
+        risk: risk,
+        flags: flags.join(', '),
+        action: action,
+        category: category,
+        reason: reason || ''
+      });
+
+      if (risk > 0.30) {
+        trainingData.push({ url, risk, ts: now });
+      }
+    }
 
     // Keep logs manageable
     if (logs.length > 500) logs.shift();
@@ -266,7 +327,7 @@ async function logSecurityEvent(url, risk, features, extraFlags = []) {
 
     // Activate Safe Mode if Risk is High or User Enabled it
     const shouldEnforceSafeMode = (risk >= WARN_THRESHOLD) || !!res.safeMode;
-    if (shouldEnforceSafeMode) {
+    if (shouldEnforceSafeMode && action !== 'blocked') {
       applySafeModeProtections(url, risk);
     }
   });
@@ -339,10 +400,12 @@ function applyAgePenalty(isSuspiciousAge, tabId, url, currentRisk) {
     if (!isSuspiciousAge) return;
     const newRisk = Math.min(1.0, currentRisk + 0.4); 
     if (newRisk >= BLOCK_THRESHOLD) {
+        logSecurityEvent(url, newRisk, {}, ['Suspicious-Domain-Age'], 'blocked', 'Domain registered < 30 days ago');
         chrome.tabs.update(tabId, {
-            url: chrome.runtime.getURL('blocked.html') + `?url=${encodeURIComponent(url)}&risk=${newRisk}&reason=new_domain_age`
+            url: chrome.runtime.getURL('blocked.html') + `?url=${encodeURIComponent(url)}&risk=${newRisk}&reason=new_domain_age&flags=Suspicious-Domain-Age&details=${encodeURIComponent('Domain registered under 30 days ago')}`
         });
     } else if (newRisk >= WARN_THRESHOLD) {
+        logSecurityEvent(url, newRisk, {}, ['Suspicious-Domain-Age'], 'safe_mode', 'Domain registered < 30 days ago');
         applySafeModeProtections(url, newRisk);
     }
 }
@@ -372,19 +435,28 @@ chrome.webNavigation.onCommitted.addListener(async (details) => {
         domainToCheck = domainToCheck.substring(4);
     }
     if (allowlist.has(domainToCheck)) {
+        logSecurityEvent(url, 0.0, {}, ['Allowlist-Verified'], 'allowed', 'Verified Safe via Top 100k Allowlist');
         return; // Immediately approve (0ms interception time)
     }
 
     const features = extractFeaturesFromUrl(url);
     const risk = await predictProbability(features, url);
 
-    logSecurityEvent(url, risk, features);
-
     if (risk >= BLOCK_THRESHOLD) {
+      const mlFlags = [];
+      if (features.is_tunnel) mlFlags.push("Tunnel");
+      if (features.is_homograph) mlFlags.push("Homograph");
+      if (features.suspicious_tld) mlFlags.push("Risk-TLD");
+      if (features.subdomain_count > 2) mlFlags.push("Subdomains");
+      if (features.brand_impersonation) mlFlags.push("Brand-Impersonation");
+      if (features.tok_login || features.tok_signin || features.tok_auth) mlFlags.push("Login-Target");
+
+      logSecurityEvent(url, risk, features, mlFlags, 'blocked', 'High Risk Machine Learning Detection');
       chrome.tabs.update(details.tabId, {
-        url: chrome.runtime.getURL('blocked.html') + `?url=${encodeURIComponent(url)}&risk=${risk}`
+        url: chrome.runtime.getURL('blocked.html') + `?url=${encodeURIComponent(url)}&risk=${risk}&reason=ml_detection&flags=${encodeURIComponent(mlFlags.join(','))}`
       });
     } else {
+      logSecurityEvent(url, risk, features, [], (risk >= WARN_THRESHOLD ? 'safe_mode' : 'allowed'));
       checkDomainAge(parsedUrl.hostname, details.tabId, url, risk);
     }
   } catch (e) {
@@ -490,7 +562,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           if (await isOneTimeAllowed(domain)) return; // User just allowed it — skip DOM re-block
         } catch (e) {}
 
-        logSecurityEvent(url, riskScore, { is_tunnel: 0, is_homograph: 0, suspicious_tld: 0, subdomain_count: 0 }, extraFlags);
+        logSecurityEvent(url, riskScore, { is_tunnel: 0, is_homograph: 0, suspicious_tld: 0, subdomain_count: 0 }, extraFlags, 'blocked', details || 'DOM Heuristics Block');
 
         const tabId = sender.tab ? sender.tab.id : null;
         const blockUrl = chrome.runtime.getURL('blocked.html') + 
@@ -507,10 +579,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         }
       })();
     } else if (riskScore >= WARN_THRESHOLD) {
-      logSecurityEvent(url, riskScore, { is_tunnel: 0, is_homograph: 0, suspicious_tld: 0, subdomain_count: 0 }, extraFlags);
+      logSecurityEvent(url, riskScore, { is_tunnel: 0, is_homograph: 0, suspicious_tld: 0, subdomain_count: 0 }, extraFlags, 'safe_mode', details || 'DOM Suspicious Form/Identity Signals');
       applySafeModeProtections(url, riskScore);
     } else if (riskScore > 0) {
-      logSecurityEvent(url, riskScore, { is_tunnel: 0, is_homograph: 0, suspicious_tld: 0, subdomain_count: 0 }, extraFlags);
+      logSecurityEvent(url, riskScore, { is_tunnel: 0, is_homograph: 0, suspicious_tld: 0, subdomain_count: 0 }, extraFlags, 'allowed', details || 'DOM Heuristic Telemetry');
     }
   }
 });
@@ -539,9 +611,9 @@ chrome.webRequest.onHeadersReceived.addListener(
     }
     
     if (isTunnel) {
-      logSecurityEvent(details.url, 1.0, { is_tunnel: 1, is_homograph: 0, suspicious_tld: 0, subdomain_count: 0 });
+      logSecurityEvent(details.url, 1.0, { is_tunnel: 1, is_homograph: 0, suspicious_tld: 0, subdomain_count: 0 }, ['Tunnel-Header'], 'blocked', 'Reverse tunnel service header detected');
       chrome.tabs.update(details.tabId, {
-        url: chrome.runtime.getURL('blocked.html') + `?url=${encodeURIComponent(details.url)}&risk=1.00&reason=tunnel_header_detected`
+        url: chrome.runtime.getURL('blocked.html') + `?url=${encodeURIComponent(details.url)}&risk=1.00&reason=tunnel_header_detected&flags=Tunnel-Header`
       });
     }
   },

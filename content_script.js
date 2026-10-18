@@ -92,6 +92,7 @@ function performDOMAnalysis() {
   if (isHttp && hasPasswordInput) {
     domRiskScore += 0.65;
     flags.push('Insecure-Password-HTTP');
+    flags.push('Fake-Login');
     reasons.push('Password entry requested over an unencrypted HTTP connection.');
   }
 
@@ -117,11 +118,13 @@ function performDOMAnalysis() {
       if (hasPasswordInput) {
         domRiskScore += 0.75;
         flags.push('Brand-Impersonation');
+        flags.push('Fake-Login');
         reasons.push(`Brand mismatch: Page presents credentials interface for "${brand.name}", but host "${currentHost}" is not an official domain.`);
         break;
       } else if (/login|sign in|verify|account|password|auth|billing/i.test(combinedContext)) {
         domRiskScore += 0.55;
         flags.push('Brand-Impersonation');
+        flags.push('Fake-Login');
         reasons.push(`Suspected brand impersonation: Uses "${brand.name}" identity on non-affiliated domain "${currentHost}".`);
         break;
       }
@@ -146,6 +149,7 @@ function performDOMAnalysis() {
       if (matchesExfiltration) {
         domRiskScore += 0.85;
         flags.push('Exfiltration-Endpoint');
+        flags.push('Fake-Login');
         reasons.push('Form submits sensitive credentials to a known third-party collector/webhook endpoint.');
       } else if (action.startsWith('http')) {
         try {
@@ -155,6 +159,7 @@ function performDOMAnalysis() {
           if (actionUrl.hostname && actionUrl.hostname !== currentHost && !actionUrl.hostname.endsWith('.' + currentHost) && !isTrustedSSO) {
             domRiskScore += 0.6;
             flags.push('Cross-Domain-Form');
+            flags.push('Fake-Login');
             reasons.push(`Password form submits credentials to an external, untrusted host: ${actionUrl.hostname}`);
           }
         } catch (e) {}

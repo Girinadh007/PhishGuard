@@ -1,4 +1,5 @@
 *.csv
+!model_comparison_results.csv
 phishing_dataset.csv
 model/top-1m.csv
 model/phishing_dataset.csv
@@ -6,3 +7,4 @@ __pycache__/
 *.pyc
 *.joblib
 /model.json
+.vscode/

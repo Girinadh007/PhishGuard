@@ -8,42 +8,52 @@
     <link rel="stylesheet" href="styles/premium.css">
     <style>
         body {
-            height: 100vh;
+            min-height: 100vh;
+            height: auto;
             display: flex;
             align-items: center;
             justify-content: center;
             text-align: center;
+            padding: 30px 16px;
+            box-sizing: border-box;
         }
 
         .danger-card {
-            max-width: 600px;
+            max-width: 740px;
+            width: 100%;
             padding: 40px;
+            box-sizing: border-box;
         }
 
         .icon-shield {
-            font-size: 5rem;
+            font-size: 4.5rem;
             color: var(--danger);
-            margin-bottom: 20px;
+            margin-bottom: 16px;
+            filter: drop-shadow(0 0 25px rgba(220, 38, 38, 0.4));
         }
 
         h1 {
-            font-size: 3rem;
+            font-size: 2.2rem;
             margin-bottom: 10px;
             color: var(--danger);
+            font-weight: 800;
+            letter-spacing: -0.5px;
         }
 
         .url-display {
-            background: rgba(0, 0, 0, 0.3);
-            padding: 12px;
+            background: rgba(0, 0, 0, 0.35);
+            padding: 12px 16px;
             border-radius: 8px;
             font-family: monospace;
             margin: 20px 0;
             word-break: break-all;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            color: #f1f5f9;
+            font-size: 0.9rem;
         }
 
         .reason {
-            color: var(--text-dim);
-            margin-bottom: 30px;
+            margin-bottom: 24px;
         }
     </style>
 </head>
@@ -51,31 +61,39 @@
 <body>
     <div class="glass-card danger-card">
         <div class="icon-shield">🔴</div>
-        <h1 style="font-size: 2.2rem;">Be careful — this website may be dangerous</h1>
-        <p style="font-size: 1.1rem; color: var(--text);">This website appears to be imitating a trusted service and may be attempting to collect your login information.</p>
+        <h1>Be careful — this website may be dangerous</h1>
+        <p style="font-size: 1.05rem; color: var(--text-dim); margin-top: 0; line-height: 1.5;">This website appears to be attempting deceptive activity or masquerading as a trusted service.</p>
 
         <div class="url-display" id="urlDisplay">Unknown URL</div>
+        
+        <!-- Explanation, Suggestions & Know More Button -->
         <div class="reason" id="reasonDisplay"></div>
 
-        <div id="evidenceSection" style="display: none; margin-top: 20px; text-align: left; background: rgba(0,0,0,0.2); padding: 20px; border-radius: 8px;">
-            <h3 style="margin-top: 0;">Why are you seeing this?</h3>
-            <ul style="list-style-type: none; padding: 0; color: var(--text-dim); margin-bottom: 20px;">
+        <!-- Detailed Evidence & Educational Learning Section -->
+        <div id="evidenceSection" style="display: none; margin-top: 20px; text-align: left; background: rgba(0,0,0,0.3); padding: 22px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.08);">
+            <h3 style="margin-top: 0; font-size: 1.1rem; color: #f8fafc;">Why are you seeing this?</h3>
+            <ul id="evidenceList" style="list-style-type: none; padding: 0; color: var(--text-dim); margin-bottom: 20px;">
                 <li style="margin-bottom: 8px;">⚠️ The website address looks unusual</li>
                 <li style="margin-bottom: 8px;">⚠️ It resembles a trusted website</li>
                 <li style="margin-bottom: 8px;">⚠️ The information appears to be sent somewhere unexpected</li>
             </ul>
             
-            <h3 style="margin-top: 0; color: var(--primary);">What you can learn</h3>
-            <p style="color: var(--text-dim); font-size: 0.95rem;">Attackers can use look-alike characters in website addresses to make fake websites appear legitimate. Always check the actual domain before entering your password.</p>
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 16px;">
+                <h3 style="margin: 0; color: var(--primary); font-size: 1.05rem;">What you can learn</h3>
+                <button id="evidenceKnowMoreBtn" class="btn-secondary" style="font-size: 0.8rem; display: inline-flex; align-items: center; gap: 6px;">
+                    <span>🔍</span> Know more about this
+                </button>
+            </div>
+            <p id="learningContent" style="color: var(--text-dim); font-size: 0.92rem; margin-top: 10px; line-height: 1.5;">Attackers can use look-alike characters in website addresses to make fake websites appear legitimate. Always check the actual domain before entering your password.</p>
         </div>
 
         <div style="display: flex; gap: 15px; justify-content: center; margin-top: 30px; flex-wrap: wrap;">
             <button class="premium-btn" id="goBackBtn" style="min-width: 200px;">Go Back to Safety</button>
-            <button class="premium-btn" id="learnWhyBtn" style="background: rgba(99, 102, 241, 0.2); color: var(--primary); min-width: 200px;">Learn Why</button>
+            <button class="premium-btn" id="learnWhyBtn" style="background: rgba(99, 102, 241, 0.2); color: var(--primary); min-width: 200px; border: 1px solid rgba(99, 102, 241, 0.4);">Learn Why</button>
         </div>
         
-        <div style="margin-top: 20px;">
-            <button style="background: none; border: none; color: var(--text-dim); text-decoration: underline; cursor: pointer; font-size: 0.8rem;" id="allowSiteBtn">Continue Anyway (Not Recommended)</button>
+        <div style="margin-top: 22px;">
+            <button style="background: none; border: none; color: var(--text-dim); text-decoration: underline; cursor: pointer; font-size: 0.8rem; opacity: 0.8;" id="allowSiteBtn">Continue Anyway (Not Recommended)</button>
         </div>
     </div>
 

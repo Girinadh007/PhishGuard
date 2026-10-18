@@ -89,21 +89,25 @@
     </header>
 
     <div class="grid">
-        <div class="glass-card stat-card">
+        <div class="glass-card stat-card stat-card-clickable active" id="cardScanned" data-category="all" title="Click to filter by all scanned sites">
             <span class="stat-val" id="totalScanned">0</span>
             <span class="stat-label">Sites Scanned</span>
+            <div class="card-hint">Click to view all logs</div>
         </div>
-        <div class="glass-card stat-card">
+        <div class="glass-card stat-card stat-card-clickable" id="cardThreats" data-category="threats" title="Click to filter by threats prevented">
             <span class="stat-val" id="totalBlocked" style="color: var(--danger)">0</span>
             <span class="stat-label">Threats Prevented</span>
+            <div class="card-hint">Click to view threats</div>
         </div>
-        <div class="glass-card stat-card">
+        <div class="glass-card stat-card stat-card-clickable" id="cardSuspicious" data-category="suspicious" title="Click to filter by suspicious sites">
             <span class="stat-val" id="suspiciousSites" style="color: var(--warning)">0</span>
             <span class="stat-label">Suspicious Sites Checked</span>
+            <div class="card-hint">Click to view suspicious</div>
         </div>
-        <div class="glass-card stat-card">
-            <span class="stat-val" id="fakeLogins" style="color: var(--danger)">0</span>
+        <div class="glass-card stat-card stat-card-clickable" id="cardFakeLogins" data-category="fake_logins" title="Click to filter by fake login pages stopped">
+            <span class="stat-val" id="fakeLogins" style="color: #ec4899">0</span>
             <span class="stat-label">Fake Login Pages Stopped</span>
+            <div class="card-hint">Click to view fake logins</div>
         </div>
     </div>
 
@@ -137,21 +141,69 @@
         </div>
     </div>
 
-    <div class="glass-card" style="margin-top: 40px; padding: 24px;">
-        <h2>Recent Activity Log</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>TIMESTAMP</th>
-                    <th>DOMAIN</th>
-                    <th>RISK LEVEL</th>
-                    <th>WARNING SIGNS</th>
-                </tr>
-            </thead>
-            <tbody id="logTable">
-                <!-- Logs added here -->
-            </tbody>
-        </table>
+    <div class="glass-card" style="margin-top: 40px; padding: 24px;" id="logsSection">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px; margin-bottom: 20px;">
+            <div>
+                <h2 style="margin: 0;" id="tableCategoryTitle">Security Activity Logs</h2>
+                <p style="color: var(--text-dim); margin: 4px 0 0 0; font-size: 0.85rem;" id="tableCategorySubtitle">Showing all scanned sites and telemetry</p>
+            </div>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <button id="exportCsvBtn" class="btn-secondary" title="Export current logs as CSV">📥 Export CSV</button>
+                <button id="exportJsonBtn" class="btn-secondary" title="Export current logs as JSON">📦 Export JSON</button>
+                <button id="clearLogsBtn" class="btn-secondary" style="color: #fca5a5;" title="Clear scan history">🗑️ Clear Logs</button>
+            </div>
+        </div>
+
+        <!-- Category Tabs -->
+        <div class="category-tabs" id="categoryTabs">
+            <button class="cat-tab-btn active" data-category="all" id="tabAll">
+                <span>🌐 All Sites Scanned</span>
+                <span class="cat-pill-count" id="pillAll">0</span>
+            </button>
+            <button class="cat-tab-btn tab-threats" data-category="threats" id="tabThreats">
+                <span>🛡️ Threats Prevented</span>
+                <span class="cat-pill-count" id="pillThreats">0</span>
+            </button>
+            <button class="cat-tab-btn tab-suspicious" data-category="suspicious" id="tabSuspicious">
+                <span>⚠️ Suspicious Checked</span>
+                <span class="cat-pill-count" id="pillSuspicious">0</span>
+            </button>
+            <button class="cat-tab-btn tab-fake-logins" data-category="fake_logins" id="tabFakeLogins">
+                <span>🚫 Fake Login Pages Stopped</span>
+                <span class="cat-pill-count" id="pillFakeLogins">0</span>
+            </button>
+        </div>
+
+        <!-- Search & Filter Bar -->
+        <div class="log-toolbar">
+            <input type="text" id="logSearchInput" class="log-search-input" placeholder="🔍 Search logs by domain, URL, action, or detection flags...">
+            <span id="logFilterStatus" style="font-size: 0.8rem; color: var(--text-dim);"></span>
+        </div>
+
+        <!-- Table Container -->
+        <div style="overflow-x: auto;">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="min-width: 140px;">TIMESTAMP</th>
+                        <th style="min-width: 200px;">DOMAIN & URL</th>
+                        <th style="min-width: 130px;">CATEGORY</th>
+                        <th style="min-width: 120px;">RISK SCORE</th>
+                        <th style="min-width: 180px;">WARNING SIGNS</th>
+                        <th style="min-width: 100px;">ACTION</th>
+                    </tr>
+                </thead>
+                <tbody id="logTable">
+                    <!-- Logs added here -->
+                </tbody>
+            </table>
+        </div>
+
+        <div id="emptyState" class="empty-state-box" style="display: none;">
+            <div class="empty-state-icon" id="emptyStateIcon">🛡️</div>
+            <h3 id="emptyStateTitle" style="margin: 0 0 6px 0; color: var(--text-main);">No logs found</h3>
+            <p id="emptyStateDesc" style="margin: 0; font-size: 0.88rem; max-width: 500px; margin: 0 auto;">No activity recorded in this category yet.</p>
+        </div>
     </div>
 
     <script src="dashboard.js"></script>
