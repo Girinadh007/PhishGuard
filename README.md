@@ -6,6 +6,9 @@
 [![Precision](https://img.shields.io/badge/Precision-99.71%25-brightgreen?style=flat-square)](https://github.com/Girinadh007/PhishGuard)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Zero Cloud Calls](https://img.shields.io/badge/Privacy-100%25_Local_Inference-blueviolet?style=flat-square)](https://github.com/Girinadh007/PhishGuard)
+[![Official Website](https://img.shields.io/badge/Official_Website-Visit_Web_Portal-informational?style=flat-square&logo=githubpages&logoColor=white)](https://girinadh007.github.io/PG_WEB/)
+
+> 🌐 **Official Website:** Visit the website — **[https://girinadh007.github.io/PG_WEB/](https://girinadh007.github.io/PG_WEB/)** to download the extension.
 
 **PhishGuard** is a high-performance, privacy-first Chromium extension that detects and intercepts phishing attacks **100% client-side in real time**. 
 
@@ -115,12 +118,14 @@ While gradient-boosted trees (XGBoost / LightGBM) demonstrate marginal metric di
 
 You can install PhishGuard into any Chromium-based browser in less than 60 seconds without installing Python or Node.js.
 
-### Step 1: Download the Repository
-- **Option A (Direct ZIP Download - Recommended for regular users):**
+### Step 1: Download the Extension
+- **Option A (Official Website - Recommended):**
+  Visit the website — **[https://girinadh007.github.io/PG_WEB/](https://girinadh007.github.io/PG_WEB/)** to download the extension.
+- **Option B (Direct GitHub ZIP Download):**
   1. Click the green **Code** button at the top of this GitHub repository.
   2. Click **Download ZIP**.
   3. Extract the downloaded `PhishGuard-main.zip` file to a folder on your computer (e.g., `Desktop` or `Documents`).
-- **Option B (Via Git):**
+- **Option C (Via Git):**
   ```bash
   git clone https://github.com/Girinadh007/PhishGuard.git
   ```
