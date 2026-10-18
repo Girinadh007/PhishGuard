@@ -6,6 +6,7 @@
 [![Precision](https://img.shields.io/badge/Precision-99.71%25-brightgreen?style=flat-square)](https://github.com/Girinadh007/PhishGuard)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Zero Cloud Calls](https://img.shields.io/badge/Privacy-100%25_Local_Inference-blueviolet?style=flat-square)](https://github.com/Girinadh007/PhishGuard)
+[![Browsers](https://img.shields.io/badge/Browsers-Chrome%20%7C%20Edge%20%7C%20Brave%20%7C%20Opera%20%7C%20Vivaldi-orange?style=flat-square)](#-supported--usable-browsers)
 [![Official Website](https://img.shields.io/badge/Official_Website-Visit_Web_Portal-informational?style=flat-square&logo=githubpages&logoColor=white)](https://girinadh007.github.io/PG_WEB/)
 
 > 🌐 **Official Website:** Visit the website — **[https://girinadh007.github.io/PG_WEB/](https://girinadh007.github.io/PG_WEB/)** to download the extension.
@@ -18,9 +19,10 @@ Unlike conventional anti-phishing tools that transmit visited URLs to remote clo
 
 ## 📑 Table of Contents
 - [Overview & Architecture](#-overview--architecture)
+- [Supported & Usable Browsers](#-supported--usable-browsers)
 - [Multi-Model Benchmark & Scientific Comparison](#-multi-model-benchmark--scientific-comparison)
 - [Why Random Forest is the Optimal Architecture](#-why-random-forest-is-the-optimal-architecture)
-- [How to Install in Your Browser (Chrome / Edge / Brave)](#-how-to-install-in-your-browser-chrome--edge--brave)
+- [How to Install in Your Browser (Chrome / Edge / Brave / Opera / Vivaldi)](#-how-to-install-in-your-browser-chrome--edge--brave--opera--vivaldi)
 - [How to Run and Benchmark the Models Locally](#-how-to-run-and-benchmark-the-models-locally)
 - [Heuristic & Lexical Feature Engineering](#-heuristic--lexical-feature-engineering)
 - [Threat Warning Screen & Security Dashboard](#-threat-warning-screen--security-dashboard)
@@ -64,6 +66,48 @@ PhishGuard combines a high-speed local allowlist with a machine learning classif
 - **Top 100K Pre-compiled Allowlist**: Instantly bypasses scanning for verified global domains, cutting false alarms to near zero.
 - **Interactive Explanations**: Blocked pages explain *why* the link is suspicious (e.g., suspicious TLD, excessive subdomains, brand impersonation tokens, high entropy).
 - **Executive Security Dashboard**: Live telemetry, whitelist management, threat logs, and manual URL scanner.
+
+---
+
+## 🌍 Supported & Usable Browsers
+
+PhishGuard is built adhering strictly to the modern **Manifest V3 (MV3)** WebExtensions specification. Because it relies exclusively on standard client-side JavaScript (`chrome.*` API namespace) and typed array evaluation, it is compatible with a wide array of desktop and mobile browsers:
+
+### 1. Chromium-Based Browsers (Native / 100% Out of the Box)
+All browsers powered by the Chromium engine support PhishGuard immediately without any code changes or compilation:
+
+| Browser | Platform | Compatibility | Installation Path |
+| :--- | :--- | :---: | :--- |
+| **Google Chrome** | Windows / macOS / Linux / ChromeOS |  **Native MV3** | `chrome://extensions/` |
+| **Microsoft Edge** | Windows / macOS / Linux |  **Native MV3** | `edge://extensions/` |
+| **Brave Browser** | Windows / macOS / Linux |  **Native MV3** | `brave://extensions/` |
+| **Opera & Opera GX** | Windows / macOS / Linux |  **Native MV3** | `opera://extensions/` |
+| **Vivaldi** | Windows / macOS / Linux |  **Native MV3** | `vivaldi://extensions/` |
+| **Arc Browser** | macOS / Windows |  **Native MV3** | `arc://extensions/` |
+| **Chromium** (Open-Source) | Windows / macOS / Linux / BSD |  **Native MV3** | `chrome://extensions/` |
+| **Yandex Browser** | Windows / macOS / Linux |  **Native MV3** | `browser://extensions/` |
+
+#### Mobile Browsers (Android)
+- **Kiwi Browser (Android)**: Full extension and developer mode support.
+- **Yandex Mobile Browser**: Extensions loaded via Developer Options.
+- **Microsoft Edge (Android Canary/Dev)**: Extension support enabled via experimental flags.
+
+---
+
+### 2. Mozilla Firefox (Gecko Engine)
+- **Status**: Compatible with minor manifest adjustments.
+- **Details**: Firefox supports Manifest V3 (`manifest_version: 3`). To load into Firefox (`about:debugging`):
+  1. Add `"browser_specific_settings": { "gecko": { "id": "phishguard@local" } }` to `manifest.json`.
+  2. Firefox currently prefers event background pages or background scripts (`"background": { "scripts": ["background.js"] }`).
+
+---
+
+### 3. Apple Safari (macOS & iOS)
+- **Status**: Convertible via Xcode.
+- **Details**: Apple supports Manifest V3 WebExtensions on Safari 15.4+. To run on Safari, wrap the project into an Xcode Safari extension app using Apple's official converter:
+  ```bash
+  xcrun safari-web-extension-converter /path/to/PhishGuard
+  ```
 
 ---
 
@@ -114,7 +158,7 @@ While gradient-boosted trees (XGBoost / LightGBM) demonstrate marginal metric di
 
 ---
 
-## 🌐 How to Install in Your Browser (Chrome / Edge / Brave)
+## 🚀 How to Install in Your Browser (Chrome / Edge / Brave / Opera / Vivaldi)
 
 You can install PhishGuard into any Chromium-based browser in less than 60 seconds without installing Python or Node.js.
 
