@@ -2,8 +2,8 @@
 
 [![Manifest V3](https://img.shields.io/badge/Chrome_Extension-Manifest_V3-4285F4?style=flat-square&logo=googlechrome&logoColor=white)](https://developer.chrome.com/docs/extensions/mv3/intro/)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
-[![Model Accuracy](https://img.shields.io/badge/Model_Accuracy-99.22%25-success?style=flat-square)](https://github.com/Girinadh007/PhishGuard)
-[![Precision](https://img.shields.io/badge/Precision-99.71%25-brightgreen?style=flat-square)](https://github.com/Girinadh007/PhishGuard)
+[![Model Accuracy](https://img.shields.io/badge/Model_Accuracy-99.20%25-success?style=flat-square)](https://github.com/Girinadh007/PhishGuard)
+[![Precision](https://img.shields.io/badge/Precision-99.87%25-brightgreen?style=flat-square)](https://github.com/Girinadh007/PhishGuard)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Zero Cloud Calls](https://img.shields.io/badge/Privacy-100%25_Local_Inference-blueviolet?style=flat-square)](https://github.com/Girinadh007/PhishGuard)
 [![Browsers](https://img.shields.io/badge/Browsers-Chrome%20%7C%20Edge%20%7C%20Brave%20%7C%20Opera%20%7C%20Vivaldi-orange?style=flat-square)](#-supported--usable-browsers)
@@ -51,7 +51,7 @@ PhishGuard combines a high-speed local allowlist with a machine learning classif
                                         │
                                         ▼
                          ┌─────────────────────────────┐
-                         │  Random Forest (In-Browser) │ (Inference: ~0.032 ms pure JS)
+                         │  Random Forest (In-Browser) │ (Inference: ~0.0038 ms pure JS)
                          └─────────────────────────────┘
                                   │            │
                      Probability >= 0.5   Probability < 0.5
@@ -113,18 +113,18 @@ All browsers powered by the Chromium engine support PhishGuard immediately witho
 
 ## 📊 Multi-Model Benchmark & Scientific Comparison
 
-We conducted a comprehensive benchmark across **8 industry-standard machine learning architectures** evaluated on a curated, real-world dataset of **60,000 URLs** (48,000 train / 12,000 holdout test):
+We conducted a comprehensive benchmark across **8 industry-standard machine learning architectures** evaluated on the complete dataset of **450,177 candidate URLs** (382,650 train / 67,527 holdout test):
 
 | Model Architecture | Accuracy | Precision | Recall (Sensitivity) | Specificity | F1-Score | ROC-AUC | False Positive Rate (FPR) | Inference Latency | Model Footprint |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Random Forest (PhishGuard)** | **99.22%** | **99.71%** | **96.98%** | **99.91%** | **98.33%** | **99.69%** | **0.09%** | **32.3 µs** | **2.27 MB** |
-| **XGBoost (Extreme Gradient Boosting)** | 99.34% | 99.78% | 97.41% | 99.93% | 98.58% | 99.78% | 0.07% | 492.5 µs | 0.20 MB* |
-| **LightGBM (Gradient Boosting)** | 99.42% | 99.78% | 97.73% | 99.93% | 98.74% | 99.80% | 0.07% | 1543.2 µs | 0.32 MB* |
-| **Decision Tree (CART)** | 99.16% | 99.71% | 96.70% | 99.91% | 98.18% | 98.11% | 0.09% | 61.2 µs | 0.02 MB |
-| **Support Vector Machine (Linear SVM)** | 98.93% | 99.85% | 95.60% | 99.96% | 97.68% | 99.43% | 0.04% | 2133.8 µs | < 0.01 MB |
-| **Logistic Regression** | 98.90% | 99.89% | 95.42% | 99.97% | 97.60% | 99.37% | 0.03% | 85.2 µs | < 0.01 MB |
-| **AdaBoost (Adaptive Boosting)** | 98.71% | 99.92% | 94.56% | 99.98% | 97.17% | 99.46% | 0.02% | 4076.9 µs | 0.03 MB |
-| **Gaussian Naive Bayes** | 98.07% | 96.04% | 95.70% | 98.79% | 95.87% | 98.60% | 1.21% | 183.5 µs | < 0.01 MB |
+| **Random Forest (PhishGuard)** | **99.20%** | **99.87%** | **96.69%** | **99.96%** | **98.26%** | **99.59%** | **0.04%** | **3.76 µs (JS) / 2.7 ms (Py)** | **3.39 MB (JSON) / 5.7 MB** |
+| **LightGBM (Gradient Boosting)** | 99.39% | 99.77% | 97.58% | 99.93% | 98.66% | 99.75% | 0.07% | 421.2 µs | 0.33 MB* |
+| **XGBoost (Extreme Gradient Boosting)** | 99.29% | 99.86% | 97.09% | 99.96% | 98.45% | 99.73% | 0.04% | 595.4 µs | 0.26 MB* |
+| **Decision Tree (CART)** | 99.18% | 99.74% | 96.74% | 99.92% | 98.21% | 98.40% | 0.08% | 47.3 µs | 0.05 MB |
+| **Logistic Regression** | 98.87% | 99.73% | 95.40% | 99.92% | 97.51% | 99.26% | 0.08% | 63.8 µs | < 0.01 MB |
+| **Support Vector Machine (Linear SVM)** | 98.86% | 99.60% | 95.49% | 99.88% | 97.50% | 99.27% | 0.12% | 1507.2 µs | < 0.01 MB |
+| **AdaBoost (Adaptive Boosting)** | 98.68% | 99.94% | 94.35% | 99.98% | 97.06% | 99.41% | 0.02% | 3146.6 µs | 0.03 MB |
+| **Gaussian Naive Bayes** | 98.00% | 95.76% | 95.61% | 98.72% | 95.68% | 98.80% | 1.28% | 155.1 µs | < 0.01 MB |
 
 *\* Note on XGBoost / LightGBM footprints: While model weights appear compact in Python, deploying them in a browser extension requires shipping a 15–25 MB compiled WebAssembly (WASM) engine and runtime.*
 
@@ -222,7 +222,7 @@ python scripts/compare_models.py
 *(On Windows with multiple Python versions installed, run: `py -3.10 scripts/compare_models.py`)*
 
 **What this script does:**
-1. Loads the 60,000 URL dataset from `phishing_dataset.csv`.
+1. Loads the complete 450,177 URL dataset from `phishing_dataset.csv` (382,650 train / 67,527 holdout test).
 2. Extracts 27 lexical and entropy features per URL.
 3. Trains and benchmarks 8 distinct ML models under identical splits.
 4. Outputs comprehensive confusion matrices, accuracy, precision, recall, specificity, F1-scores, and microsecond latency.

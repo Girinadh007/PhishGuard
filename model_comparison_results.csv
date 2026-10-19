@@ -1,9 +1,9 @@
 Model,Accuracy (%),Precision (%),Recall (%),F1 Score (%),ROC-AUC (%),False Positive Rate (FPR),Specificity (%),Inference Latency (per URL),Throughput (URLs/s),Model Size,Train Time
-Random Forest (PhishGuard),99.22%,99.71%,96.98%,98.33%,99.69%,0.09%,99.91%,32289.1 us,31,2.27 MB,0.57s
-Logistic Regression,98.90%,99.89%,95.42%,97.60%,99.37%,0.03%,99.97%,85.2 us,"11,739",0.00 MB,1.59s
-Support Vector Machine (Linear SVM),98.93%,99.85%,95.60%,97.68%,99.43%,0.04%,99.96%,2133.8 us,469,0.00 MB,1.25s
-Naive Bayes (Gaussian),98.07%,96.04%,95.70%,95.87%,98.60%,1.21%,98.79%,183.5 us,"5,449",0.00 MB,0.03s
-Decision Tree (CART),99.16%,99.71%,96.70%,98.18%,98.11%,0.09%,99.91%,61.2 us,"16,332",0.02 MB,0.31s
-AdaBoost (Adaptive Boosting),98.71%,99.92%,94.56%,97.17%,99.46%,0.02%,99.98%,4076.9 us,245,0.03 MB,1.93s
-XGBoost (Extreme Gradient Boosting),99.34%,99.78%,97.41%,98.58%,99.78%,0.07%,99.93%,492.5 us,"2,030",0.20 MB,0.19s
-LightGBM (Gradient Boosting),99.42%,99.78%,97.73%,98.74%,99.80%,0.07%,99.93%,1543.2 us,648,0.32 MB,0.33s
+Random Forest (PhishGuard),99.20%,99.87%,96.69%,98.26%,99.59%,0.04%,99.96%,2725.3 us,367,5.71 MB,4.73s
+Logistic Regression,98.87%,99.73%,95.40%,97.51%,99.26%,0.08%,99.92%,63.8 us,"15,677",0.00 MB,14.15s
+Support Vector Machine (Linear SVM),98.86%,99.60%,95.49%,97.50%,99.27%,0.12%,99.88%,1507.2 us,663,0.00 MB,11.40s
+Naive Bayes (Gaussian),98.00%,95.76%,95.61%,95.68%,98.80%,1.28%,98.72%,155.1 us,"6,446",0.00 MB,0.14s
+Decision Tree (CART),99.18%,99.74%,96.74%,98.21%,98.40%,0.08%,99.92%,47.3 us,"21,134",0.05 MB,2.31s
+AdaBoost (Adaptive Boosting),98.68%,99.94%,94.35%,97.06%,99.41%,0.02%,99.98%,3146.6 us,318,0.03 MB,15.76s
+XGBoost (Extreme Gradient Boosting),99.29%,99.86%,97.09%,98.45%,99.73%,0.04%,99.96%,595.4 us,"1,680",0.26 MB,0.78s
+LightGBM (Gradient Boosting),99.39%,99.77%,97.58%,98.66%,99.75%,0.07%,99.93%,421.2 us,"2,374",0.33 MB,0.71s

@@ -177,9 +177,7 @@ def run_comparison():
     df = df.dropna(subset=['label'])
     df = df[~df['url'].astype(str).str.startswith('#')]
 
-    # Sample 60,000 URLs for high-precision, swift benchmarking across 8 models
-    sample_size = min(60000, len(df))
-    df = df.sample(n=sample_size, random_state=42)
+    print(f"Total candidate URLs in dataset: {len(df):,}")
 
     print(f"Extracting features for {len(df):,} URLs...")
     t0 = time.time()
@@ -188,7 +186,7 @@ def run_comparison():
     y = df['label'].astype(int)
     print(f"Feature extraction done in {time.time() - t0:.2f}s. Feature dimensions: {X.shape[1]}")
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.20, random_state=42, stratify=y)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.15, random_state=42, stratify=y)
     print(f"Train set: {len(X_train):,}, Test set: {len(X_test):,}")
 
     # Use NumPy contiguous arrays to ensure optimal performance and eliminate UserWarning feature name mismatches
@@ -228,12 +226,17 @@ def run_comparison():
 
         # 2. Inference Latency Benchmark (1000 single URL microsecond benchmark using numpy)
         X_sample_arr = X_test_np[:1000]
+        orig_jobs = getattr(clf, 'n_jobs', None)
+        if hasattr(clf, 'n_jobs'):
+            clf.n_jobs = 1
         t_infer_start = time.time()
         for i in range(len(X_sample_arr)):
             _ = clf.predict_proba(X_sample_arr[i:i+1])
         infer_time_ms = (time.time() - t_infer_start) * 1000 / len(X_sample_arr)
         infer_time_us = infer_time_ms * 1000
         throughput = 1000.0 / infer_time_ms if infer_time_ms > 0 else 0
+        if orig_jobs is not None:
+            clf.n_jobs = orig_jobs
 
         # 3. Test Set Evaluation
         y_pred = clf.predict(X_test_np)

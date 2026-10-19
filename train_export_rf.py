@@ -88,7 +88,7 @@ tn, fp, fn, tp = cm.ravel()
 spec = tn / (tn + fp)
 
 print("\n========================================================")
-print("   📊 PHISHGUARD RESEARCH PAPER EVALUATION RESULTS     ")
+print("   PHISHGUARD RESEARCH PAPER EVALUATION RESULTS")
 print("========================================================")
 print(f"Test Set Size:          {len(y_test):,} URLs (15% split)")
 print("--- CONFUSION MATRIX ---")
@@ -138,4 +138,9 @@ for est in rf.estimators_:
 with open('model.json','w') as f:
     json.dump(forest_json, f)
 
-print("Exported model.json with", len(forest_json["trees"]), "trees.")
+import os
+os.makedirs('model', exist_ok=True)
+with open('model/model.json','w') as f:
+    json.dump(forest_json, f)
+
+print("Exported model.json with", len(forest_json["trees"]), "trees to ./model.json and ./model/model.json.")
