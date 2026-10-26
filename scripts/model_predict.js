@@ -174,6 +174,8 @@ const SAFE_DOMAINS = [
   'slack.com', 'discord.com', 'twitch.tv', 'spotify.com', 'dropbox.com',
   'box.com', 'zoom.us', 'webex.com', 'salesforce.com', 'atlassian.com',
   'okta.com', 'auth0.com', 'vercel.com', 'netlify.com', 'heroku.com',
+  'grammarly.com', 'solvely.ai', 'solvely.com', 'canva.com', 'workday.com',
+  'myworkdayjobs.com', 'duplichecker.com', 'darkreading.com', 'humaniser.com',
   'localhost', '127.0.0.1'
 ];
 

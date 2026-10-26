@@ -180,25 +180,48 @@ function performDOMAnalysis() {
   }
 
   // 4. Hidden & Zero-Dimension iFrames (Cloaking / Payload Injection)
-  const iframes = document.querySelectorAll('iframe');
-  let suspiciousIframeFound = false;
-  iframes.forEach(iframe => {
-    const style = window.getComputedStyle(iframe);
-    const width = parseInt(style.width, 10);
-    const height = parseInt(style.height, 10);
-    const isZeroSized = (width === 0 || height === 0 || width === 1 || height === 1 || iframe.getAttribute('width') === '0' || iframe.getAttribute('height') === '0');
-    const isHidden = style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0';
-    const isOffscreen = parseInt(style.top, 10) < -200 || parseInt(style.left, 10) < -200;
+  // Only evaluate if the page presents credentials or brand indicators (to avoid false alarms on legitimate analytics/GTM/SSO iframes)
+  const BENIGN_IFRAME_PROVIDERS = [
+    'googletagmanager.com', 'google.com', 'gstatic.com', 'doubleclick.net',
+    'recaptcha.net', 'hcaptcha.com', 'cloudflare.com', 'challenges.cloudflare.com',
+    'stripe.com', 'stripe.network', 'paypal.com', 'facebook.com', 'facebook.net',
+    'clarity.ms', 'hotjar.com', 'segment.com', 'intercom.io', 'zendesk.com',
+    'chrome-extension:', 'moz-extension:', 'about:blank', 'javascript:'
+  ];
 
-    if (isZeroSized || isHidden || isOffscreen) {
-      suspiciousIframeFound = true;
+  if (hasPasswordInput || domRiskScore > 0) {
+    const iframes = document.querySelectorAll('iframe');
+    let suspiciousIframeFound = false;
+
+    iframes.forEach(iframe => {
+      const src = (iframe.getAttribute('src') || '').toLowerCase().trim();
+      
+      // Ignore benign provider iframes, same-origin, or blank iframes
+      if (!src || BENIGN_IFRAME_PROVIDERS.some(p => src.includes(p))) return;
+      try {
+        const parsedSrc = new URL(src, window.location.href);
+        if (parsedSrc.hostname === currentHost || parsedSrc.hostname.endsWith('.' + currentHost)) {
+          return; // same-origin or sub-domain iframe
+        }
+      } catch (e) {}
+
+      const style = window.getComputedStyle(iframe);
+      const width = parseInt(style.width, 10);
+      const height = parseInt(style.height, 10);
+      const isZeroSized = (width === 0 || height === 0 || width === 1 || height === 1 || iframe.getAttribute('width') === '0' || iframe.getAttribute('height') === '0');
+      const isHidden = style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0';
+      const isOffscreen = parseInt(style.top, 10) < -200 || parseInt(style.left, 10) < -200;
+
+      if (isZeroSized || isHidden || isOffscreen) {
+        suspiciousIframeFound = true;
+      }
+    });
+
+    if (suspiciousIframeFound) {
+      domRiskScore += 0.20;
+      flags.push('Hidden-Iframe');
+      reasons.push('Hidden or off-screen cross-origin iframe detected alongside sensitive input fields.');
     }
-  });
-
-  if (suspiciousIframeFound) {
-    domRiskScore += 0.45;
-    flags.push('Hidden-Iframe');
-    reasons.push('Zero-dimensional or hidden iframe detected (common cloaking / exploit mechanism).');
   }
 
   // 5. Anti-Inspection / Researcher Evasion Checks

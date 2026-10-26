@@ -183,14 +183,85 @@ async function checkForOTAUpdates(manual = false) {
       modelLoaded = true;
       console.log('[PhishGuard] Packaged AI model loaded into Flattened Engine');
     }
+    await sanitizeHistoricalLogs();
   } catch (err) {
     console.error('Model load failed, attempting packaged fallback:', err);
     try {
       await loadModel(MODEL_PATH);
       modelLoaded = true;
+      await sanitizeHistoricalLogs();
     } catch (e) {}
   }
 })();
+
+// Multi-tenant application hosting providers where arbitrary user subdomains should NOT inherit parent allowlisting
+const MULTI_TENANT_HOSTS = new Set([
+  'github.io', 'gitlab.io', 'vercel.app', 'netlify.app', 'firebaseapp.com',
+  'web.app', 'pages.dev', 'workers.dev', 'herokuapp.com', 'glitch.me',
+  'azurewebsites.net', 'appspot.com', 'cloudfront.net', 'ngrok.io', 'ngrok-free.app',
+  'loca.lt', 'trycloudflare.com', 'surge.sh', 'render.com', 'onrender.com'
+]);
+
+function isDomainAllowlisted(hostname) {
+  if (!hostname || typeof hostname !== 'string') return false;
+  let domain = hostname.toLowerCase().trim();
+  if (domain.includes(':')) domain = domain.split(':')[0]; // strip port if present
+  if (domain.startsWith('www.')) domain = domain.substring(4);
+
+  // 1. Direct match in allowlist
+  if (allowlist.has(domain)) return true;
+
+  // 2. Check parent domain hierarchy for subdomains (e.g. accounts.google.com -> google.com, novartis.wd3.myworkdayjobs.com -> myworkdayjobs.com)
+  const parts = domain.split('.');
+  for (let i = 1; i < parts.length - 1; i++) {
+    const parentDomain = parts.slice(i).join('.');
+    if (MULTI_TENANT_HOSTS.has(parentDomain)) {
+      break; // Stop at multi-tenant host: do not inherit allowlist for arbitrary user-created subdomains
+    }
+    if (allowlist.has(parentDomain)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Clean up any historical false positives in stored scanLogs for allowlisted domains
+async function sanitizeHistoricalLogs() {
+  try {
+    const data = await chrome.storage.local.get(['scanLogs', 'stats']);
+    if (data.scanLogs && Array.isArray(data.scanLogs)) {
+      let modified = false;
+      let fixedBlocks = 0;
+      const sanitizedLogs = data.scanLogs.map(log => {
+        if (log.domain && isDomainAllowlisted(log.domain)) {
+          if (log.risk > 0 || log.action !== 'allowed' || log.category !== 'safe' || (log.flags && log.flags.includes('Hidden-Iframe'))) {
+            modified = true;
+            if (log.action === 'blocked') fixedBlocks++;
+            return {
+              ...log,
+              risk: 0.0,
+              action: 'allowed',
+              category: 'safe',
+              flags: 'Allowlist-Verified',
+              reason: 'Verified Safe via Top 100k Allowlist'
+            };
+          }
+        }
+        return log;
+      });
+      if (modified) {
+        const stats = data.stats || { scanned: 0, blocked: 0, totalRisk: 0, falsePositives: 0, falseNegatives: 0 };
+        if (fixedBlocks > 0) {
+          stats.blocked = Math.max(0, (stats.blocked || 0) - fixedBlocks);
+        }
+        await chrome.storage.local.set({ scanLogs: sanitizedLogs, stats });
+        console.log('[PhishGuard] Sanitized historical scan logs for verified allowlist domains.');
+      }
+    }
+  } catch (e) {
+    console.error('Scan logs sanitization failed:', e);
+  }
+}
 
 function isRestrictedUrl(url) {
   if (!url || typeof url !== 'string') return true;
@@ -241,22 +312,30 @@ async function logSecurityEvent(url, risk, features = {}, extraFlags = [], expli
   if (features && features.brand_impersonation) flags.push("Brand-Impersonation");
   if (features && (features.tok_login || features.tok_signin || features.tok_auth)) flags.push("Login-Target");
 
+  const isAllowlisted = isDomainAllowlisted(domain) || extraFlags.includes('Allowlist-Verified');
+  if (isAllowlisted) {
+    risk = 0.0;
+    if (!flags.includes('Allowlist-Verified')) flags.push('Allowlist-Verified');
+  }
+
   // Determine action and category
-  const isBlocked = explicitAction === 'blocked' || risk >= BLOCK_THRESHOLD;
-  const isSafeMode = explicitAction === 'safe_mode' || (risk >= WARN_THRESHOLD && !isBlocked);
-  const action = explicitAction || (isBlocked ? 'blocked' : (isSafeMode ? 'safe_mode' : 'allowed'));
+  const isBlocked = !isAllowlisted && (explicitAction === 'blocked' || risk >= BLOCK_THRESHOLD);
+  const isSafeMode = !isAllowlisted && (explicitAction === 'safe_mode' || (risk >= WARN_THRESHOLD && !isBlocked));
+  const action = isAllowlisted ? 'allowed' : (explicitAction || (isBlocked ? 'blocked' : (isSafeMode ? 'safe_mode' : 'allowed')));
 
   const flagsLower = flags.map(f => f.toLowerCase());
-  const isFakeLogin = flagsLower.some(f => 
+  const isFakeLogin = !isAllowlisted && (flagsLower.some(f => 
     f.includes('fake-login') || 
     f.includes('brand-impersonation') || 
     f.includes('exfiltration-endpoint') || 
     f.includes('insecure-password') || 
     f.includes('cross-domain-form')
-  ) || ((flagsLower.includes('login-target') || /login|signin|account|auth|password|banking/i.test(url)) && risk >= 0.70);
+  ) || ((flagsLower.includes('login-target') || /login|signin|account|auth|password|banking/i.test(url)) && risk >= 0.70));
 
   let category = 'safe';
-  if (isFakeLogin) {
+  if (isAllowlisted) {
+    category = 'safe';
+  } else if (isFakeLogin) {
     category = 'fake_login';
   } else if (isBlocked) {
     category = 'threat';
@@ -280,15 +359,18 @@ async function logSecurityEvent(url, risk, features = {}, extraFlags = [], expli
       const existingFlags = existing.flags ? existing.flags.split(',').map(s => s.trim()).filter(Boolean) : [];
       const mergedFlags = Array.from(new Set([...existingFlags, ...flags]));
 
-      const mergedRisk = Math.max(existing.risk || 0, risk);
-      if (existing.action !== 'blocked' && isBlocked) {
+      const isAllowlistedEntry = isAllowlisted || mergedFlags.includes('Allowlist-Verified');
+      const mergedRisk = isAllowlistedEntry ? 0.0 : Math.max(existing.risk || 0, risk);
+      if (existing.action !== 'blocked' && isBlocked && !isAllowlistedEntry) {
         stats.blocked++;
       }
 
       existing.risk = mergedRisk;
       existing.flags = mergedFlags.join(', ');
-      existing.action = isBlocked ? 'blocked' : (existing.action === 'blocked' ? 'blocked' : action);
-      if (category === 'fake_login' || existing.category === 'fake_login') {
+      existing.action = isAllowlistedEntry ? 'allowed' : (isBlocked ? 'blocked' : (existing.action === 'blocked' ? 'blocked' : action));
+      if (isAllowlistedEntry) {
+        existing.category = 'safe';
+      } else if (category === 'fake_login' || existing.category === 'fake_login') {
         existing.category = 'fake_login';
       } else if (isBlocked || existing.category === 'threat') {
         existing.category = 'threat';
@@ -429,12 +511,8 @@ chrome.webNavigation.onCommitted.addListener(async (details) => {
   try {
     const parsedUrl = new URL(url);
     
-    // Check if domain is in the global allowlist (Top 100k)
-    let domainToCheck = parsedUrl.hostname;
-    if (domainToCheck.startsWith('www.')) {
-        domainToCheck = domainToCheck.substring(4);
-    }
-    if (allowlist.has(domainToCheck)) {
+    // Check if domain is in the global allowlist (Top 100k) including verified subdomains
+    if (isDomainAllowlisted(parsedUrl.hostname)) {
         logSecurityEvent(url, 0.0, {}, ['Allowlist-Verified'], 'allowed', 'Verified Safe via Top 100k Allowlist');
         return; // Immediately approve (0ms interception time)
     }
@@ -470,6 +548,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       try {
         if (!msg.url || isRestrictedUrl(msg.url)) {
           sendResponse({ fused: 0, features: {}, isRestricted: true });
+          return;
+        }
+        const parsed = new URL(msg.url);
+        if (isDomainAllowlisted(parsed.hostname)) {
+          sendResponse({ fused: 0.0, features: {}, isAllowlisted: true });
           return;
         }
         const features = extractFeaturesFromUrl(msg.url);
@@ -551,6 +634,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.action === 'domAnalysisReport') {
     const { riskScore, reasons, flags, url } = msg;
     if (!url || isRestrictedUrl(url)) return;
+
+    try {
+      const hostname = new URL(url).hostname;
+      if (isDomainAllowlisted(hostname)) {
+        // Legitimate allowlisted domain: skip DOM heuristic reporting to avoid false positives
+        return;
+      }
+    } catch (e) {}
+
     const extraFlags = flags || [];
     const details = reasons && reasons.length ? reasons.join(' | ') : '';
 

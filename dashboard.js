@@ -249,14 +249,22 @@ function renderLogs() {
         }
 
         // Flags HTML formatting
-        const flagHtml = log.flags ? log.flags.split(',').map(f => {
-            const trimmed = f.trim();
-            if (!trimmed) return '';
-            const isHighRisk = trimmed === 'Brand-Impersonation' || trimmed === 'Exfiltration-Endpoint' || trimmed === 'Tunnel' || trimmed === 'Fake-Login';
-            const bg = isHighRisk ? 'rgba(239, 68, 68, 0.2)' : 'rgba(99, 102, 241, 0.2)';
-            const color = isHighRisk ? '#fca5a5' : '#c7d2fe';
-            return `<span style="display: inline-block; padding: 2px 7px; margin: 1px; border-radius: 4px; background: ${bg}; color: ${color}; font-size: 0.72rem; font-weight: 500;">${trimmed}</span>`;
-        }).filter(Boolean).join(' ') : '<span style="color: var(--text-dim); font-size: 0.75rem;">Allowlist Verified</span>';
+        let flagHtml = '';
+        if (log.flags && log.flags.trim()) {
+            flagHtml = log.flags.split(',').map(f => {
+                const trimmed = f.trim();
+                if (!trimmed) return '';
+                const isHighRisk = trimmed === 'Brand-Impersonation' || trimmed === 'Exfiltration-Endpoint' || trimmed === 'Tunnel' || trimmed === 'Fake-Login';
+                const isAllowlist = trimmed === 'Allowlist-Verified';
+                const bg = isHighRisk ? 'rgba(239, 68, 68, 0.2)' : (isAllowlist ? 'rgba(16, 185, 129, 0.2)' : 'rgba(99, 102, 241, 0.2)');
+                const color = isHighRisk ? '#fca5a5' : (isAllowlist ? '#6ee7b7' : '#c7d2fe');
+                return `<span style="display: inline-block; padding: 2px 7px; margin: 1px; border-radius: 4px; background: ${bg}; color: ${color}; font-size: 0.72rem; font-weight: 500;">${trimmed}</span>`;
+            }).filter(Boolean).join(' ');
+        } else if (log.reason && log.reason.toLowerCase().includes('allowlist')) {
+            flagHtml = '<span style="display: inline-block; padding: 2px 7px; margin: 1px; border-radius: 4px; background: rgba(16, 185, 129, 0.2); color: #6ee7b7; font-size: 0.72rem; font-weight: 500;">Allowlist-Verified</span>';
+        } else {
+            flagHtml = '<span style="color: var(--text-dim); font-size: 0.75rem;">Clean Heuristics</span>';
+        }
 
         // Action styling
         let actionHtml = '<span style="color: var(--success); font-weight: 600;">🟢 Allowed</span>';
